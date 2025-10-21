@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  domain    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  users     User[]
+  employees Employee[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String   @default("user")
+  tenantId  String
+  
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Employee {
+  id              String   @id @default(uuid())
+  firstName       String
+  lastName        String
+  startDate       DateTime
+  endDate         DateTime?
+  monthlyGross    Float
+  tenantId        String
+  
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  calculations    Calculation[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Calculation {
+  id              String   @id @default(uuid())
+  employeeId      String
+  calculatedAmount Float
+  yearsOfService  Float
+  calculationDate DateTime @default(now())
+  
+  employee        Employee @relation(fields: [employeeId], references: [id])
+}
