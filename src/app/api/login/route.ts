@@ -1,63 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Pool } from 'pg'
+import { pool } from '@/lib/db'
 import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
 
 const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'fallback-secret')
 
-// Direkte PostgreSQL Verbindung
-const pool = new Pool({
-  host: 'localhost',
-  port: 5432,
-  database: 'abfertigung',
-  user: 'postgres',
-  password: 'Manisali45!*',
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
     
-    console.log('🔐 Login attempt:', email)
-    console.log('🔑 Password entered:', password)
+    const hostname = request.headers.get('host') || ''
+    const subdomain = hostname.split('.')[0]
+    
+    console.log('🔐 Login attempt:', email, 'on subdomain:', subdomain)
 
-    // Direktes SQL mit pg
-    const result = await pool.query(
+    // 1. Tenant finden
+    const tenantResult = await pool.query(
+      `SELECT id, name, domain FROM "Tenant" WHERE domain = $1`,
+      [subdomain]
+    )
+
+    if (tenantResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Firma nicht gefunden' }, { status: 404 })
+    }
+
+    const tenant = tenantResult.rows[0]
+
+    // 2. User finden
+    const userResult = await pool.query(
       `SELECT 
-        u.id, 
-        u.email, 
-        u.name, 
-        u.password, 
-        u.role, 
-        u."tenantId",
+        u.id, u.email, u.name, u.password, u.role, u."tenantId",
         t.name as "tenantName"
       FROM "User" u 
       JOIN "Tenant" t ON u."tenantId" = t.id 
-      WHERE u.email = $1`,
-      [email]
+      WHERE u.email = $1 AND u."tenantId" = $2`,
+      [email, tenant.id]
     )
 
-    console.log('👤 Users found:', result.rows.length)
-
-    if (result.rows.length === 0) {
-      console.log('❌ No user found')
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    if (userResult.rows.length === 0) {
+      return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
-    const user = result.rows[0]
-    console.log('✅ User found:', user.email)
-    console.log('🔑 Password in DB:', user.password)
-    console.log('🔍 Match?', password === user.password)
+    const user = userResult.rows[0]
 
-    // Passwort check (Klartext)
+    // 3. Passwort check
     if (password !== user.password) {
-      console.log('❌ Password mismatch!')
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+      return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
-    console.log('✅ Password correct! Creating token...')
-
-    // JWT Token erstellen
+    // 4. JWT Token
     const token = await new SignJWT({
       id: user.id,
       email: user.email,
@@ -69,17 +60,12 @@ export async function POST(request: NextRequest) {
       .setExpirationTime('24h')
       .sign(SECRET)
 
-    console.log('✅ Token created, setting cookie...')
-
-    // Cookie setzen
     cookies().set('auth-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24
     })
-
-    console.log('✅ Login successful!')
 
     return NextResponse.json({
       success: true,
@@ -94,6 +80,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('❌ Login error:', error)
-    return NextResponse.json({ error: 'Login failed' }, { status: 500 })
+    return NextResponse.json({ error: 'Login fehlgeschlagen' }, { status: 500 })
   }
 }

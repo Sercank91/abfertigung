@@ -27,7 +27,7 @@ export default async function DashboardPage() {
           <p className="text-gray-600 mb-4">Firma: <strong>{user.tenantName}</strong></p>
           <p className="text-gray-600">Rolle: <strong>{user.role}</strong></p>
           <div className="mt-6">
-            <a href="/api/logout" className="bg-red-600 text-white px-4 py-2 rounded">Abmelden</a>
+            <a href="/api/logout" className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition">Abmelden</a>
           </div>
         </div>
       </div>
