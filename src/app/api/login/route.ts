@@ -2,17 +2,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { pool } from '@/lib/db'
 import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
+import { verifyPassword } from '@/lib/password'
 
-const SECRET = new TextEncoder().encode(process.env.NEXTAUTH_SECRET || 'fallback-secret')
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { username, password } = await request.json()
     
     const hostname = request.headers.get('host') || ''
-    const subdomain = hostname.split('.')[0]
+    const subdomain = hostname.split('.')[0].replace(':3000', '')
     
-    console.log('🔐 Login attempt:', email, 'on subdomain:', subdomain)
+    console.log('🔐 Login attempt:', username, 'on subdomain:', subdomain)
 
     // 1. Tenant finden
     const tenantResult = await pool.query(
@@ -26,15 +27,15 @@ export async function POST(request: NextRequest) {
 
     const tenant = tenantResult.rows[0]
 
-    // 2. User finden
+    // 2. User finden (mit username)
     const userResult = await pool.query(
       `SELECT 
-        u.id, u.email, u.name, u.password, u.role, u."tenantId",
+        u.id, u.username, u.email, u."firstName", u."lastName", u.password, u.role, u."tenantId", u.phone, u."isActive",
         t.name as "tenantName"
       FROM "User" u 
       JOIN "Tenant" t ON u."tenantId" = t.id 
-      WHERE u.email = $1 AND u."tenantId" = $2`,
-      [email, tenant.id]
+      WHERE u.username = $1 AND u."tenantId" = $2`,
+      [username, tenant.id]
     )
 
     if (userResult.rows.length === 0) {
@@ -43,15 +44,25 @@ export async function POST(request: NextRequest) {
 
     const user = userResult.rows[0]
 
-    // 3. Passwort check
-    if (password !== user.password) {
+    // 3. Prüfe ob User aktiv ist
+    if (!user.isActive) {
+      return NextResponse.json({ error: 'Ihr Account wurde deaktiviert' }, { status: 403 })
+    }
+
+    // 4. Passwort check mit bcrypt
+    const isValidPassword = await verifyPassword(password, user.password)
+    
+    if (!isValidPassword) {
       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
-    // 4. JWT Token
+    // 5. JWT Token
     const token = await new SignJWT({
       id: user.id,
+      username: user.username,
       email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
       tenantId: user.tenantId,
       tenantName: user.tenantName,
       role: user.role
@@ -67,12 +78,16 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24
     })
 
+    console.log('✅ Login erfolgreich:', user.username, 'Role:', user.role)
+
     return NextResponse.json({
       success: true,
       user: {
         id: user.id,
+        username: user.username,
         email: user.email,
-        name: user.name,
+        firstName: user.firstName,
+        lastName: user.lastName,
         tenantId: user.tenantId,
         tenantName: user.tenantName,
         role: user.role

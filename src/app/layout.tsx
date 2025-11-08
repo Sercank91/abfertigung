@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import { SessionProvider } from './providers'
 
 export const metadata: Metadata = {
   title: 'Abfertigung Rechner',
@@ -15,9 +14,7 @@ export default function RootLayout({
   return (
     <html lang="de">
       <body>
-        <SessionProvider>
-          {children}
-        </SessionProvider>
+        {children}
       </body>
     </html>
   )

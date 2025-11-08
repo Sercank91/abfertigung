@@ -7,51 +7,299 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AnmNrSequence {
+  jahr         Int      @id
+  letzteNummer Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("AnmNrSequence")
+}
+
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  domain    String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  
-  users     User[]
-  employees Employee[]
+  id             String          @id @default(uuid())
+  name           String
+  domain         String          @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  authorizations Authorization[]
+  clearances     Clearance[]
+  companies      Company[]
+  goodsLocations GoodsLocation[]
+  guarantees     Guarantee[]
+  routes         Route[]
+  users          User[]
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  password  String
-  role      String   @default("user")
-  tenantId  String
-  
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String             @id @default(uuid())
+  username          String             @unique
+  email             String?            @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  role              String             @default("mitarbeiter")
+  isActive          Boolean            @default(true)
+  tenantId          String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  clearancesCreated Clearance[]        @relation("ClearanceCreatedBy")
+  clearancesUpdated Clearance[]        @relation("ClearanceUpdatedBy")
+  clearanceHistory  ClearanceHistory[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
 }
 
-model Employee {
-  id              String   @id @default(uuid())
-  firstName       String
-  lastName        String
-  startDate       DateTime
-  endDate         DateTime?
-  monthlyGross    Float
-  tenantId        String
-  
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  calculations    Calculation[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model Guarantee {
+  id          String             @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean            @default(true)
+  tenantId    String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  clearances  Clearance[]
+  companies   CompanyGuarantee[]
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
-model Calculation {
-  id              String   @id @default(uuid())
-  employeeId      String
-  calculatedAmount Float
-  yearsOfService  Float
-  calculationDate DateTime @default(now())
-  
-  employee        Employee @relation(fields: [employeeId], references: [id])
+model Company {
+  id         String             @id @default(uuid())
+  name       String
+  country    String
+  address    String
+  postalCode String
+  city       String
+  emails     String[]
+  phones     String[]
+  isActive   Boolean            @default(true)
+  tenantId   String
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  clearances Clearance[]
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  guarantees CompanyGuarantee[]
+
+  @@index([tenantId])
+  @@index([tenantId, name])
+}
+
+model CompanyGuarantee {
+  id          String    @id @default(uuid())
+  companyId   String
+  guaranteeId String
+  createdAt   DateTime  @default(now())
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  guarantee   Guarantee @relation(fields: [guaranteeId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, guaranteeId])
+  @@index([companyId])
+  @@index([guaranteeId])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model CustomsOffice {
+  id                  String               @id @default(uuid())
+  code                String               @unique
+  name                String
+  countryCode         String
+  city                String?
+  address             String?
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  searchText          String?
+  declarations        Declaration[]
+  routeTransitOffices RouteTransitOffice[]
+
+  @@index([countryCode])
+  @@index([code])
+  @@index([name])
+}
+
+model Route {
+  id             String               @id @default(uuid())
+  name           String
+  countries      String[]
+  description    String?
+  isActive       Boolean              @default(true)
+  tenantId       String
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  clearances     Clearance[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transitOffices RouteTransitOffice[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model RouteTransitOffice {
+  id              String        @id @default(uuid())
+  routeId         String
+  customsOfficeId String
+  order           Int
+  createdAt       DateTime      @default(now())
+  customsOffice   CustomsOffice @relation(fields: [customsOfficeId], references: [id])
+  route           Route         @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@unique([routeId, customsOfficeId])
+  @@index([routeId])
+}
+
+model GoodsLocation {
+  id          String      @id @default(uuid())
+  tenantId    String
+  name        String
+  code        String?
+  description String?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  clearances  Clearance[]
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("GoodsLocation")
+}
+
+model Authorization {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  code        String
+  isActive    Boolean     @default(true)
+  tenantId    String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clearances  Clearance[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([tenantId, name])
+}
+
+model Clearance {
+  id                  String             @id @default(uuid())
+  lrn                 String
+  companyId           String
+  guaranteeId         String
+  licensePlate        String
+  licensePlateCountry String
+  hasSecondPlate      Boolean            @default(false)
+  secondLicensePlate  String?
+  secondPlateCountry  String?
+  routeId             String?
+  simplifiedProcedure Boolean            @default(false)
+  goodsLocationId     String?
+  authorizationId     String?
+  registrationDate    DateTime           @default(now())
+  arrivalDate         DateTime
+  status              String             @default("in_bearbeitung")
+  tenantId            String
+  createdById         String
+  updatedById         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  anmNr               String?
+  authorization       Authorization?     @relation(fields: [authorizationId], references: [id])
+  company             Company            @relation(fields: [companyId], references: [id])
+  createdBy           User               @relation("ClearanceCreatedBy", fields: [createdById], references: [id])
+  goodsLocation       GoodsLocation?     @relation(fields: [goodsLocationId], references: [id])
+  guarantee           Guarantee          @relation(fields: [guaranteeId], references: [id])
+  route               Route?             @relation(fields: [routeId], references: [id])
+  tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  updatedBy           User?              @relation("ClearanceUpdatedBy", fields: [updatedById], references: [id])
+  history             ClearanceHistory[]
+  declarations        Declaration[]
+
+  @@unique([tenantId, lrn])
+  @@unique([tenantId, anmNr])
+  @@index([tenantId])
+  @@index([tenantId, lrn])
+  @@index([tenantId, anmNr])
+  @@index([tenantId, status])
+  @@index([companyId])
+}
+
+model Declaration {
+  id                  String           @id @default(uuid())
+  lrn                 String
+  clearanceId         String
+  destinationOfficeId String
+  mrn                 String?
+  registrationNumber  String?
+  declarationType     String
+  status              String           @default("neu")
+  totalGrossWeight    Float?
+  totalPackages       Int?
+  totalValue          Float?
+  currency            String?
+  tenantId            String
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  clearance           Clearance        @relation(fields: [clearanceId], references: [id], onDelete: Cascade)
+  destinationOffice   CustomsOffice    @relation(fields: [destinationOfficeId], references: [id])
+  exportDocuments     ExportDocument[]
+
+  @@unique([tenantId, lrn])
+  @@index([tenantId])
+  @@index([clearanceId])
+  @@index([tenantId, lrn])
+}
+
+model ExportDocument {
+  id                 String      @id @default(uuid())
+  declarationId      String
+  positionNumber     Int
+  mrnNumber          String
+  mrnType            String      @default("NMRN")
+  procedureCode      String
+  declarationType    String
+  senderName         String
+  senderAddress      String
+  senderPostalCode   String
+  senderCity         String
+  senderCountry      String
+  receiverName       String
+  receiverAddress    String
+  receiverPostalCode String
+  receiverCity       String
+  receiverCountry    String
+  hsCode             String
+  description        String
+  netWeight          Float
+  grossWeight        Float
+  packages           Int
+  packageType        String      @default("PK")
+  value              Float
+  currency           String
+  invoiceNumber      String
+  dispatchCountry    String
+  destinationCountry String
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  declaration        Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+
+  @@index([declarationId])
+  @@index([mrnNumber])
+}
+
+model ClearanceHistory {
+  id          String    @id @default(uuid())
+  clearanceId String
+  action      String
+  description String
+  userId      String
+  createdAt   DateTime  @default(now())
+  clearance   Clearance @relation(fields: [clearanceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([clearanceId])
+  @@index([userId])
 }
