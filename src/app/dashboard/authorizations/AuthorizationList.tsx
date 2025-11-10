@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useTransition, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useTransition, useRef, useEffect } from 'react';
 
 // Types
 interface Authorization {

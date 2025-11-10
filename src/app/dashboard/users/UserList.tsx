@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Types
@@ -65,7 +65,7 @@ const validateEmail = (email: string): boolean => {
 };
 
 const validatePhone = (phone: string): boolean => {
-  const re = /^[\d\s\-\+\(\)]+$/;
+  const re = /^[\d\s+()-]+$/;
   return !phone || re.test(phone);
 };
 
