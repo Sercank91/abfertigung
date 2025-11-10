@@ -315,3 +315,85 @@ model ClearanceHistory {
   @@index([clearanceId])
   @@index([userId])
 }
+
+// ============================================
+// OCR-System Models (für Python Worker)
+// ============================================
+
+model OcrDocument {
+  id            String     @id @default(uuid())
+  clearanceId   String
+  fileName      String
+  fileSize      Int
+  fileType      String     // "application/pdf", "image/jpeg", etc.
+  fileData      Bytes?     // Optional: Datei in DB speichern
+  filePath      String?    // Oder: Pfad zu Datei auf Disk
+  status        String     @default("pending") // "pending", "processing", "completed", "failed"
+  ocrJobId      String?    // Celery Task ID
+  progress      Int        @default(0)
+  errorMessage  String?
+  processedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  shipments     Shipment[]
+
+  @@index([clearanceId])
+  @@index([status])
+  @@index([ocrJobId])
+}
+
+model Shipment {
+  id                  String             @id @default(uuid())
+  ocrDocumentId       String
+  clearanceId         String
+  declarationId       String?            // Später zugeordnet zu Declaration
+  mrn                 String?            // MRN-Nummer (25NLBRHOG51LW45DA5)
+  documentType        String?            // "EX1", "T1", "N821"
+  procedureType       String?            // "T1", "T2", "T-"
+  commonSender        Json?              // { name, address, zip, city, country }
+  commonReceiver      Json?              // { name, address, zip, city, country }
+  commonOriginCountry String?            // "DE"
+  commonDestCountry   String?            // "TR"
+  totalPackages       Int?
+  totalGrossWeight    Float?
+  totalNetWeight      Float?
+  totalValue          Float?
+  currency            String?
+  invoiceNumbers      String[]           // ["INV-001", "INV-002"]
+  verified            Boolean            @default(false) // Vom Benutzer geprüft
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  ocrDocument         OcrDocument        @relation(fields: [ocrDocumentId], references: [id], onDelete: Cascade)
+  positions           ShipmentPosition[]
+
+  @@index([ocrDocumentId])
+  @@index([clearanceId])
+  @@index([declarationId])
+  @@index([mrn])
+}
+
+model ShipmentPosition {
+  id                 String   @id @default(uuid())
+  shipmentId         String
+  orderNumber        Int      // 1, 2, 3, ...
+  hsCode             String
+  description        String
+  netWeight          Float
+  grossWeight        Float    @default(0) // Nur bei orderNumber = 1
+  procedure          String?  // "1010", "3171", "3151", etc.
+  procedureType      String?  // "T1", "T2"
+  sender             Json?    // Nur wenn abweichend von commonSender
+  receiver           Json?    // Nur wenn abweichend von commonReceiver
+  originCountry      String?  // Nur wenn abweichend
+  destinationCountry String?  // Nur wenn abweichend
+  value              Float?
+  currency           String?
+  invoiceNumber      String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  shipment           Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, orderNumber])
+  @@index([shipmentId])
+  @@index([hsCode])
+}
