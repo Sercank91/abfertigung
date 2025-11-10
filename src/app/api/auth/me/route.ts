@@ -1,29 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
 import { pool } from '@/lib/db';
+import { getUserFromToken } from '@/lib/api-auth';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-
+/**
+ * GET /api/auth/me
+ *
+ * Gibt die aktuellen User-Daten zurück (frisch aus der DB).
+ * Wird verwendet um User-Profil zu laden.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    if (!token) {
+    // ✅ Nutze zentrale Auth-Funktion
+    const user = await getUserFromToken(request);
+
+    if (!user) {
       return NextResponse.json(
         { error: 'Nicht authentifiziert' },
         { status: 401 }
       );
     }
 
-    // Verify JWT
-    const { payload } = await jwtVerify(token.value, SECRET);
-    const userId = payload.id as string;
-
-    // Get user from database
+    // Get fresh user data from database
     const result = await pool.query(
-      `SELECT 
+      `SELECT
         id,
         username,
         email,
@@ -35,7 +34,7 @@ export async function GET(request: NextRequest) {
         "tenantId"
       FROM "User"
       WHERE id = $1`,
-      [userId]
+      [user.id]
     );
 
     if (result.rows.length === 0) {
@@ -45,18 +44,18 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const user = result.rows[0];
+    const dbUser = result.rows[0];
 
     return NextResponse.json({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      phone: user.phone,
-      role: user.role,
-      isActive: user.isActive,
-      tenantId: user.tenantId
+      id: dbUser.id,
+      username: dbUser.username,
+      email: dbUser.email,
+      firstName: dbUser.firstName,
+      lastName: dbUser.lastName,
+      phone: dbUser.phone,
+      role: dbUser.role,
+      isActive: dbUser.isActive,
+      tenantId: dbUser.tenantId
     });
 
   } catch (error) {

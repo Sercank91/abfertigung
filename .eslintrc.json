@@ -1,0 +1,50 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "eslint:recommended"
+  ],
+  "rules": {
+    // 🚨 Fehler (blockiert Build)
+    "no-console": "off",
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/no-explicit-any": "warn",
+
+    // ✅ Best Practices
+    "prefer-const": "warn",
+    "no-var": "error",
+    "eqeqeq": ["warn", "always"],
+    "no-debugger": "warn",
+
+    // 📝 Code-Style
+    "semi": ["warn", "never"],
+    "quotes": ["warn", "single", { "avoidEscape": true }],
+
+    // ⚛️ React Rules
+    "react/no-unescaped-entities": "off",
+    "react-hooks/exhaustive-deps": "warn",
+
+    // 🔒 Sicherheit
+    "no-eval": "error",
+    "no-implied-eval": "error"
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2021": true
+  }
+}
