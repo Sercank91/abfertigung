@@ -4,6 +4,7 @@ import { SignJWT } from 'jose'
 import { cookies } from 'next/headers'
 import { verifyPassword } from '@/lib/password'
 import { LoginSchema, validateData } from '@/lib/validators'
+import logger from '@/lib/logger'
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
 if (!process.env.JWT_SECRET) {
@@ -26,7 +27,8 @@ export async function POST(request: NextRequest) {
     const hostname = request.headers.get('host') || ''
     const subdomain = hostname.split('.')[0].replace(':3000', '')
 
-    console.log('🔐 Login-Versuch:', username, 'auf Subdomain:', subdomain)
+    // ✅ Strukturiertes Logging
+    logger.auth.loginAttempt(username, subdomain)
 
     // 1. Tenant finden
     const tenantResult = await pool.query(
@@ -35,7 +37,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (tenantResult.rows.length === 0) {
-      console.log('❌ Tenant nicht gefunden:', subdomain)
+      logger.auth.loginFailed(username, 'Tenant nicht gefunden')
       return NextResponse.json({ error: 'Firma nicht gefunden' }, { status: 404 })
     }
 
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     )
 
     if (userResult.rows.length === 0) {
-      console.log('❌ User nicht gefunden:', username, 'in Tenant:', tenant.id)
+      logger.auth.loginFailed(username, 'User nicht gefunden')
       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // 3. Prüfe ob User aktiv ist
     if (!user.isActive) {
-      console.log('❌ Inaktiver User-Login-Versuch:', username)
+      logger.auth.loginFailed(username, 'Account deaktiviert')
       return NextResponse.json({ error: 'Ihr Account wurde deaktiviert' }, { status: 403 })
     }
 
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
     const isValidPassword = await verifyPassword(password, user.password)
 
     if (!isValidPassword) {
-      console.log('❌ Falsches Passwort für User:', username)
+      logger.auth.loginFailed(username, 'Falsches Passwort')
       return NextResponse.json({ error: 'Ungültige Anmeldedaten' }, { status: 401 })
     }
 
@@ -96,7 +98,8 @@ export async function POST(request: NextRequest) {
       maxAge: 60 * 60 * 24 // 24 Stunden
     })
 
-    console.log('✅ Login erfolgreich:', user.username, 'Rolle:', user.role, 'Tenant:', tenant.name)
+    // ✅ Strukturiertes Success-Logging
+    logger.auth.loginSuccess(user.username, user.role, tenant.name)
 
     return NextResponse.json({
       success: true,
@@ -113,13 +116,18 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    // ✅ Bessere Fehlerbehandlung
+    // ✅ Bessere Fehlerbehandlung mit strukturiertem Logging
     if (error instanceof Error && error.message.includes('Validierungsfehler')) {
-      console.log('❌ Login-Validierungsfehler:', error.message)
+      logger.warn('Login-Validierungsfehler', { error: error.message })
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    console.error('❌ Login-Fehler:', error)
+    // Unerwarteter Fehler
+    logger.error('Login-Fehler', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    })
+
     return NextResponse.json(
       { error: 'Login fehlgeschlagen. Bitte versuchen Sie es erneut.' },
       { status: 500 }
