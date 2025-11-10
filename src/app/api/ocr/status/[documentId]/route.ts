@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/ocr/status/[documentId]
@@ -14,7 +14,7 @@ export async function GET(
     const { documentId } = params;
 
     // OcrDocument aus Datenbank laden
-    const ocrDocument = await db.ocrDocument.findUnique({
+    const ocrDocument = await prisma.ocrDocument.findUnique({
       where: { id: documentId },
       include: {
         shipments: {

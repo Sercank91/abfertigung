@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/ocr/documents/[clearanceId]
@@ -14,7 +14,7 @@ export async function GET(
     const { clearanceId } = params;
 
     // Alle OCR-Dokumente für diese Clearance laden
-    const documents = await db.ocrDocument.findMany({
+    const documents = await prisma.ocrDocument.findMany({
       where: { clearanceId },
       include: {
         shipments: {

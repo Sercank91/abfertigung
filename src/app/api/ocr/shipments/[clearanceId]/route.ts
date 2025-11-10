@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 /**
  * GET /api/ocr/shipments/[clearanceId]
@@ -14,7 +14,7 @@ export async function GET(
     const { clearanceId } = params;
 
     // Alle Shipments für diese Clearance laden
-    const shipments = await db.shipment.findMany({
+    const shipments = await prisma.shipment.findMany({
       where: { clearanceId },
       include: {
         positions: {

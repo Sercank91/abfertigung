@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Redis from 'ioredis';
-import { db } from '@/lib/db';
+import { prisma } from '@/lib/prisma';
 
 // Redis Client für Celery
 const redis = new Redis({
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Datei gespeichert: ${filePath}`);
 
     // OcrDocument in Datenbank erstellen
-    const ocrDocument = await db.ocrDocument.create({
+    const ocrDocument = await prisma.ocrDocument.create({
       data: {
         clearanceId,
         fileName: file.name,
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Task-ID in Datenbank speichern
-    await db.ocrDocument.update({
+    await prisma.ocrDocument.update({
       where: { id: ocrDocument.id },
       data: { ocrJobId: taskId },
     });
