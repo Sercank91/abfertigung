@@ -237,3 +237,18 @@ export function sanitizeFilename(filename: string): string {
     .replace(/_{2,}/g, '_')
     .replace(/^_+|_+$/g, '');
 }
+
+/**
+ * Formatiert AnmNr für UI-Anzeige
+ *
+ * @param anmNr - Anmeldenummer (5-stellig)
+ * @returns Formatierte AnmNr mit Punkt
+ *
+ * @example
+ * formatAnmNr("25055") // → "25.055"
+ * formatAnmNr("25001") // → "25.001"
+ */
+export function formatAnmNr(anmNr: string): string {
+  if (!anmNr || anmNr.length !== 5) return anmNr;
+  return `${anmNr.slice(0, 2)}.${anmNr.slice(2)}`;
+}

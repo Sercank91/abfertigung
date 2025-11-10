@@ -1,15 +1,18 @@
 /**
  * Central Utils Export
  * Barrel export für alle Utility-Funktionen
+ *
+ * WICHTIG: Exportiert nur Client-sichere Utilities (ohne Server-Dependencies)
+ * Server-spezifische Funktionen wie generateNextAnmNr aus @/lib/anmnr direkt importieren
  */
 
-// Re-export von anmnr.ts (bereits vorhanden)
-export { formatAnmNr, isValidAnmNr, generateNextAnmNr, getCurrentSequenceInfo } from '../anmnr';
+// Re-export von anmnr.ts - nur Client-sichere Funktionen
+export { isValidAnmNr } from '../anmnr';
 
 // Countries
 export * from './countries';
 
-// Formatting
+// Formatting (inkl. formatAnmNr)
 export * from './formatting';
 
 // Clearance
