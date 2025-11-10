@@ -292,8 +292,8 @@ export default async function Home() {
       await jwtVerify(token.value, SECRET)
       redirect('/dashboard')
     } catch (error) {
-      // Token ungültig - Cookie löschen
-      cookies().delete('auth-token')
+      // Token ungültig - ignorieren und Login-Seite anzeigen
+      // Cookie wird beim nächsten erfolgreichen Login überschrieben
     }
   }
 
