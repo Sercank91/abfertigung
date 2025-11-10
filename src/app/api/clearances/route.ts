@@ -130,9 +130,9 @@ export async function GET(request: NextRequest) {
       },
     }));
 
-    return createSuccessResponse({
+    return NextResponse.json({
       clearances,
-      count: clearances.length,
+      count: clearances.length
     });
   } catch (error) {
     console.error('❌ Fehler beim Abrufen der Clearances:', error);
@@ -301,11 +301,10 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Clearance angelegt:', result.rows[0].anmNr);
 
-    return createSuccessResponse(
-      { clearance: result.rows[0] },
-      'Clearance erfolgreich angelegt',
-      201
-    );
+    return NextResponse.json({
+      message: 'Clearance erfolgreich angelegt',
+      clearance: result.rows[0]
+    }, { status: 201 });
   } catch (error) {
     console.error('❌ Fehler beim Anlegen der Clearance:', error);
 
