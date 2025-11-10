@@ -3,6 +3,7 @@
     "next/core-web-vitals",
     "eslint:recommended"
   ],
+  "plugins": ["@typescript-eslint"],
   "rules": {
     // 🚨 Fehler (blockiert Build)
     "no-console": "off",
