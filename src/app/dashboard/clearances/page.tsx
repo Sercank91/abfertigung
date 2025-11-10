@@ -1,57 +1,57 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import ClearanceList from './ClearanceList';
-import SubHeader from '@/components/SubHeader';
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { jwtVerify } from 'jose'
+import ClearanceList from './ClearanceList'
+import SubHeader from '@/components/SubHeader'
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
 
 async function getUser() {
-  const cookieStore = cookies();
-  const token = cookieStore.get('auth-token');
-  if (!token) redirect('/');
-  
+  const cookieStore = cookies()
+  const token = cookieStore.get('auth-token')
+  if (!token) redirect('/')
+
   try {
-    const { payload } = await jwtVerify(token.value, SECRET);
-    return payload as any;
+    const { payload } = await jwtVerify(token.value, SECRET)
+    return payload as any
   } catch (error) {
-    redirect('/');
+    redirect('/')
   }
 }
 
 async function getClearances() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const cookieStore = cookies()
+    const token = cookieStore.get('auth-token')
+
     const response = await fetch(`${baseUrl}/api/clearances`, {
       headers: {
-        'Cookie': `auth-token=${token?.value}`,
+        Cookie: `auth-token=${token?.value}`,
       },
       cache: 'no-store',
-    });
+    })
 
     if (!response.ok) {
-      return [];
+      return []
     }
 
-    const data = await response.json();
-    return data.clearances || [];
+    const data = await response.json()
+    return data.clearances || []
   } catch (error) {
-    console.error('Fehler beim Laden der Abfertigungen:', error);
-    return [];
+    console.error('Fehler beim Laden der Abfertigungen:', error)
+    return []
   }
 }
 
 export default async function ClearancesPage() {
-  const user = await getUser();
-  const clearances = await getClearances();
-  
+  const user = await getUser()
+  const clearances = await getClearances()
+
   return (
     <>
       {/* Subheader mit Titel */}
-      <SubHeader 
+      <SubHeader
         title={`NCTS Abgang - ${user.tenantName}`}
         userRole={user.role}
         tenantName={user.tenantName}
@@ -60,9 +60,9 @@ export default async function ClearancesPage() {
       {/* Main Content */}
       <div className="px-8 py-6">
         <div className="w-full">
-        <ClearanceList />
+          <ClearanceList />
         </div>
       </div>
     </>
-  );
+  )
 }

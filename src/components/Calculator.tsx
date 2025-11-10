@@ -25,7 +25,7 @@ export default function Calculator() {
 
     if (years >= 3) {
       abfertigung = gross * 2 // Grundbetrag nach 3 Jahren
-      
+
       const additionalYears = years - 3
       const additionalPayments = Math.floor(additionalYears / 5)
       abfertigung += additionalPayments * gross
@@ -36,15 +36,11 @@ export default function Calculator() {
 
   return (
     <div className="bg-white rounded-lg shadow-xl p-8">
-      <h2 className="text-3xl font-bold text-gray-900 mb-6">
-        📊 Abfertigungsrechner
-      </h2>
+      <h2 className="text-3xl font-bold text-gray-900 mb-6">📊 Abfertigungsrechner</h2>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dienstbeginn
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Dienstbeginn</label>
           <input
             type="date"
             value={startDate}
@@ -54,9 +50,7 @@ export default function Calculator() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Dienstende
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Dienstende</label>
           <input
             type="date"
             value={endDate}

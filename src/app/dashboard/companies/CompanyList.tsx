@@ -1,63 +1,68 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Guarantee {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
 interface Company {
-  id: string;
-  name: string;
-  country: string;
-  address: string;
-  postalCode: string;
-  city: string;
-  emails: string[];
-  phones: string[];
-  isActive: boolean;
-  createdAt: string;
-  guarantees: Guarantee[];
+  id: string
+  name: string
+  country: string
+  address: string
+  postalCode: string
+  city: string
+  emails: string[]
+  phones: string[]
+  isActive: boolean
+  createdAt: string
+  guarantees: Guarantee[]
 }
 
 interface Props {
-  initialCompanies: Company[];
-  availableGuarantees: Guarantee[];
-  canEdit: boolean;
-  userRole: string;
+  initialCompanies: Company[]
+  availableGuarantees: Guarantee[]
+  canEdit: boolean
+  userRole: string
 }
 
-export default function CompanyList({ initialCompanies, availableGuarantees, canEdit, userRole }: Props) {
-  const router = useRouter();
-  
+export default function CompanyList({
+  initialCompanies,
+  availableGuarantees,
+  canEdit,
+  userRole,
+}: Props) {
+  const router = useRouter()
+
   // ✅ SUPER DEFENSIVE: Stelle sicher dass ALLES Arrays sind
   const [companies, setCompanies] = useState<Company[]>(() => {
-    if (!Array.isArray(initialCompanies)) return [];
-    return initialCompanies.map(c => {
-      const guarantees = Array.isArray(c.guarantees) ? c.guarantees : [];
-      
+    if (!Array.isArray(initialCompanies)) return []
+    return initialCompanies.map((c) => {
+      const guarantees = Array.isArray(c.guarantees) ? c.guarantees : []
+
       // 🐛 DEBUG: Prüfe ob Bürgschaften vollständige Objekte sind
-      const hasInvalidGuarantees = guarantees.some(g => !g || !g.id || !g.name);
+      const hasInvalidGuarantees = guarantees.some((g) => !g || !g.id || !g.name)
       if (hasInvalidGuarantees) {
-        console.warn(`⚠️ Firma "${c.name}" hat unvollständige Bürgschaften-Daten!`, c.guarantees);
+        console.warn(`⚠️ Firma "${c.name}" hat unvollständige Bürgschaften-Daten!`, c.guarantees)
       }
-      
+
       return {
         ...c,
         guarantees: guarantees,
         emails: Array.isArray(c.emails) ? c.emails : [],
-        phones: Array.isArray(c.phones) ? c.phones : []
-      };
-    });
-  });
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+        phones: Array.isArray(c.phones) ? c.phones : [],
+      }
+    })
+  })
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   // Form State
   const [formData, setFormData] = useState({
@@ -69,26 +74,27 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
     emails: [''],
     phones: [''],
     guaranteeIds: [] as string[],
-  });
+  })
 
   // ✅ Stelle sicher dass guarantees auch ein Array ist
-  const safeGuarantees = Array.isArray(availableGuarantees) ? availableGuarantees : [];
+  const safeGuarantees = Array.isArray(availableGuarantees) ? availableGuarantees : []
 
   // Suche filtern
-  const filteredCompanies = companies.filter((c) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.country.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.city.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCompanies = companies.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.country.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      c.city.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   // Modal öffnen (Neu oder Bearbeiten)
   const openModal = (company?: Company) => {
     if (company) {
-      setEditingCompany(company);
-      const safeEmails = Array.isArray(company.emails) ? company.emails : [];
-      const safePhones = Array.isArray(company.phones) ? company.phones : [];
-      const safeGuarantees = Array.isArray(company.guarantees) ? company.guarantees : [];
-      
+      setEditingCompany(company)
+      const safeEmails = Array.isArray(company.emails) ? company.emails : []
+      const safePhones = Array.isArray(company.phones) ? company.phones : []
+      const safeGuarantees = Array.isArray(company.guarantees) ? company.guarantees : []
+
       setFormData({
         name: company.name,
         country: company.country,
@@ -97,10 +103,10 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
         city: company.city || '',
         emails: safeEmails.length > 0 ? safeEmails : [''],
         phones: safePhones.length > 0 ? safePhones : [''],
-        guaranteeIds: safeGuarantees.map(g => g.id),
-      });
+        guaranteeIds: safeGuarantees.map((g) => g.id),
+      })
     } else {
-      setEditingCompany(null);
+      setEditingCompany(null)
       setFormData({
         name: '',
         country: '',
@@ -110,105 +116,103 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
         emails: [''],
         phones: [''],
         guaranteeIds: [],
-      });
+      })
     }
-    setError('');
-    setShowModal(true);
-  };
+    setError('')
+    setShowModal(true)
+  }
 
   // Modal schließen
   const closeModal = () => {
-    setShowModal(false);
-    setEditingCompany(null);
-    setError('');
-  };
+    setShowModal(false)
+    setEditingCompany(null)
+    setError('')
+  }
 
   // E-Mail hinzufügen
   const addEmail = () => {
-    setFormData({ ...formData, emails: [...formData.emails, ''] });
-  };
+    setFormData({ ...formData, emails: [...formData.emails, ''] })
+  }
 
   // E-Mail entfernen
   const removeEmail = (index: number) => {
-    setFormData({ 
-      ...formData, 
-      emails: formData.emails.filter((_, i) => i !== index) 
-    });
-  };
+    setFormData({
+      ...formData,
+      emails: formData.emails.filter((_, i) => i !== index),
+    })
+  }
 
   // E-Mail ändern
   const updateEmail = (index: number, value: string) => {
-    const newEmails = [...formData.emails];
-    newEmails[index] = value;
-    setFormData({ ...formData, emails: newEmails });
-  };
+    const newEmails = [...formData.emails]
+    newEmails[index] = value
+    setFormData({ ...formData, emails: newEmails })
+  }
 
   // Telefon hinzufügen
   const addPhone = () => {
-    setFormData({ ...formData, phones: [...formData.phones, ''] });
-  };
+    setFormData({ ...formData, phones: [...formData.phones, ''] })
+  }
 
   // Telefon entfernen
   const removePhone = (index: number) => {
-    setFormData({ 
-      ...formData, 
-      phones: formData.phones.filter((_, i) => i !== index) 
-    });
-  };
+    setFormData({
+      ...formData,
+      phones: formData.phones.filter((_, i) => i !== index),
+    })
+  }
 
   // Telefon ändern
   const updatePhone = (index: number, value: string) => {
-    const newPhones = [...formData.phones];
-    newPhones[index] = value;
-    setFormData({ ...formData, phones: newPhones });
-  };
+    const newPhones = [...formData.phones]
+    newPhones[index] = value
+    setFormData({ ...formData, phones: newPhones })
+  }
 
   // Bürgschaft Toggle
   const toggleGuarantee = (guaranteeId: string) => {
     if (formData.guaranteeIds.includes(guaranteeId)) {
       setFormData({
         ...formData,
-        guaranteeIds: formData.guaranteeIds.filter(id => id !== guaranteeId)
-      });
+        guaranteeIds: formData.guaranteeIds.filter((id) => id !== guaranteeId),
+      })
     } else {
       setFormData({
         ...formData,
-        guaranteeIds: [...formData.guaranteeIds, guaranteeId]
-      });
+        guaranteeIds: [...formData.guaranteeIds, guaranteeId],
+      })
     }
-  };
+  }
 
   // Speichern
   const handleSave = async () => {
     // Validierung
     if (!formData.name.trim()) {
-      setError('Firmenname ist erforderlich');
-      return;
+      setError('Firmenname ist erforderlich')
+      return
     }
 
     if (!formData.country.trim()) {
-      setError('Land ist erforderlich');
-      return;
+      setError('Land ist erforderlich')
+      return
     }
 
     if (formData.guaranteeIds.length === 0) {
-      setError('Mindestens eine Bürgschaft muss ausgewählt werden');
-      return;
+      setError('Mindestens eine Bürgschaft muss ausgewählt werden')
+      return
     }
 
-    setLoading(true);
-    setError('');
+    setLoading(true)
+    setError('')
 
     try {
-      const url = editingCompany 
-        ? `/api/companies/${editingCompany.id}`
-        : '/api/companies';
-      
-      const method = editingCompany ? 'PUT' : 'POST';
+      const url = editingCompany ? `/api/companies/${editingCompany.id}` : '/api/companies'
+
+      const method = editingCompany ? 'PUT' : 'POST'
 
       // Emails und Phones filtern (nur gefüllte)
-      const cleanedEmails = formData.emails.filter(e => e.trim() !== '');
-      const cleanedPhones = formData.phones.filter(p => p.trim() !== '');
+      const cleanedEmails = formData.emails.filter((e) => e.trim() !== '')
+      const cleanedPhones = formData.phones.filter((p) => p.trim() !== '')
 
       const response = await fetch(url, {
         method,
@@ -218,14 +222,14 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
           emails: cleanedEmails,
           phones: cleanedPhones,
         }),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Fehler beim Speichern');
-        setLoading(false);
-        return;
+        setError(data.error || 'Fehler beim Speichern')
+        setLoading(false)
+        return
       }
 
       // ✅ Stelle sicher dass die Response auch Arrays hat
@@ -233,54 +237,52 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
         ...data,
         guarantees: Array.isArray(data.guarantees) ? data.guarantees : [],
         emails: Array.isArray(data.emails) ? data.emails : [],
-        phones: Array.isArray(data.phones) ? data.phones : []
-      };
+        phones: Array.isArray(data.phones) ? data.phones : [],
+      }
 
       // State aktualisieren
       if (editingCompany) {
-        setCompanies(companies.map(c => 
-          c.id === editingCompany.id ? safeData : c
-        ));
+        setCompanies(companies.map((c) => (c.id === editingCompany.id ? safeData : c)))
       } else {
-        setCompanies([...companies, safeData]);
+        setCompanies([...companies, safeData])
       }
 
-      closeModal();
-      setLoading(false);
-      router.refresh();
+      closeModal()
+      setLoading(false)
+      router.refresh()
     } catch (err) {
-      setError('Netzwerkfehler');
-      setLoading(false);
+      setError('Netzwerkfehler')
+      setLoading(false)
     }
-  };
+  }
 
   // Löschen
   const handleDelete = async (company: Company) => {
-    if (!confirm(`Möchten Sie die Firma "${company.name}" wirklich löschen?`)) return;
+    if (!confirm(`Möchten Sie die Firma "${company.name}" wirklich löschen?`)) return
 
-    setLoading(true);
+    setLoading(true)
 
     try {
       const response = await fetch(`/api/companies/${company.id}`, {
         method: 'DELETE',
-      });
+      })
 
       if (!response.ok) {
-        const data = await response.json();
-        alert(data.error || 'Fehler beim Löschen');
-        setLoading(false);
-        return;
+        const data = await response.json()
+        alert(data.error || 'Fehler beim Löschen')
+        setLoading(false)
+        return
       }
 
       // Aus State entfernen
-      setCompanies(companies.filter(c => c.id !== company.id));
-      setLoading(false);
-      router.refresh();
+      setCompanies(companies.filter((c) => c.id !== company.id))
+      setLoading(false)
+      router.refresh()
     } catch (err) {
-      alert('Netzwerkfehler');
-      setLoading(false);
+      alert('Netzwerkfehler')
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <>
@@ -304,7 +306,12 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
 
@@ -321,7 +328,12 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
               disabled={safeGuarantees.length === 0}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Neue Firma
             </button>
@@ -337,16 +349,17 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
       )}
 
       {/* DEBUG: Warnung wenn Bürgschaften "Unbekannt" angezeigt werden */}
-      {companies.some(c => 
-        Array.isArray(c.guarantees) && 
-        c.guarantees.some(g => !g || !g.name)
+      {companies.some(
+        (c) => Array.isArray(c.guarantees) && c.guarantees.some((g) => !g || !g.name)
       ) && (
         <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-sm mb-4 text-sm">
           <strong>🐛 API-Problem erkannt:</strong> Bürgschaften werden als "Unbekannt" angezeigt!
           <br />
-          <strong>Lösung:</strong> In <code className="bg-red-100 px-1">src/app/api/companies/route.ts</code> muss bei der GET-Route folgendes ergänzt werden:
+          <strong>Lösung:</strong> In{' '}
+          <code className="bg-red-100 px-1">src/app/api/companies/route.ts</code> muss bei der
+          GET-Route folgendes ergänzt werden:
           <pre className="bg-red-100 p-2 mt-2 text-xs overflow-x-auto">
-{`include: {
+            {`include: {
   guarantees: true  // ← Dies fehlt!
 }`}
           </pre>
@@ -398,13 +411,15 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
               <tbody className="bg-white">
                 {filteredCompanies.map((company, index) => {
                   // ✅ Extra Safety: Garantiere Arrays
-                  const safeCompanyGuarantees = Array.isArray(company.guarantees) ? company.guarantees : [];
-                  const safeCompanyEmails = Array.isArray(company.emails) ? company.emails : [];
-                  const safeCompanyPhones = Array.isArray(company.phones) ? company.phones : [];
-                  
+                  const safeCompanyGuarantees = Array.isArray(company.guarantees)
+                    ? company.guarantees
+                    : []
+                  const safeCompanyEmails = Array.isArray(company.emails) ? company.emails : []
+                  const safeCompanyPhones = Array.isArray(company.phones) ? company.phones : []
+
                   return (
-                    <tr 
-                      key={company.id} 
+                    <tr
+                      key={company.id}
                       className={`${index !== filteredCompanies.length - 1 ? 'border-b border-[#e6e6e6]' : ''} hover:bg-[#f9f9f9] transition-colors`}
                     >
                       <td className="px-3 py-2">
@@ -428,7 +443,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                             <span className="text-sm text-gray-400">-</span>
                           ) : (
                             safeCompanyGuarantees.map((g, idx) => (
-                              <span 
+                              <span
                                 key={g?.id || `guarantee-${idx}`}
                                 className="px-2 py-0.5 text-xs font-semibold rounded bg-green-100 text-green-800"
                               >
@@ -465,7 +480,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                         </td>
                       )}
                     </tr>
-                  );
+                  )
                 })}
               </tbody>
             </table>
@@ -505,9 +520,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
 
                 {/* Land */}
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[#525252]">
-                    Land *
-                  </label>
+                  <label className="block font-semibold text-sm mb-1 text-[#525252]">Land *</label>
                   <input
                     type="text"
                     value={formData.country}
@@ -638,12 +651,13 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                   </label>
                   <div className="border border-[#c6c6c6] rounded-sm p-2 max-h-40 overflow-y-auto bg-[#f9f9f9]">
                     {safeGuarantees.length === 0 ? (
-                      <p className="text-sm text-gray-500">
-                        Keine Bürgschaften verfügbar
-                      </p>
+                      <p className="text-sm text-gray-500">Keine Bürgschaften verfügbar</p>
                     ) : (
                       safeGuarantees.map((guarantee) => (
-                        <label key={guarantee.id} className="flex items-center mb-2 cursor-pointer hover:bg-white p-1 rounded">
+                        <label
+                          key={guarantee.id}
+                          className="flex items-center mb-2 cursor-pointer hover:bg-white p-1 rounded"
+                        >
                           <input
                             type="checkbox"
                             checked={formData.guaranteeIds.includes(guarantee.id)}
@@ -682,5 +696,5 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
         </div>
       )}
     </>
-  );
+  )
 }

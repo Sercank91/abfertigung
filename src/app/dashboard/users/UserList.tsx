@@ -1,127 +1,129 @@
-'use client';
+'use client'
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 // Types
 interface User {
-  id: string;
-  username: string;
-  email: string | null;
-  firstName: string;
-  lastName: string;
-  phone: string | null;
-  role: string;
-  isActive: boolean;
-  createdAt: string;
+  id: string
+  username: string
+  email: string | null
+  firstName: string
+  lastName: string
+  phone: string | null
+  role: string
+  isActive: boolean
+  createdAt: string
 }
 
 interface Props {
-  initialUsers: User[];
-  canEdit: boolean;
-  userRole: string;
+  initialUsers: User[]
+  canEdit: boolean
+  userRole: string
 }
 
 interface FormData {
-  username: string;
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  role: string;
+  username: string
+  email: string
+  password: string
+  firstName: string
+  lastName: string
+  phone: string
+  role: string
 }
 
 // Constants
-const DEBOUNCE_DELAY = 300;
-const MIN_USERNAME_LENGTH = 3;
-const MAX_USERNAME_LENGTH = 30;
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_NAME_LENGTH = 50;
-const MAX_EMAIL_LENGTH = 100;
-const MAX_PHONE_LENGTH = 20;
+const DEBOUNCE_DELAY = 300
+const MIN_USERNAME_LENGTH = 3
+const MAX_USERNAME_LENGTH = 30
+const MIN_PASSWORD_LENGTH = 8
+const MAX_NAME_LENGTH = 50
+const MAX_EMAIL_LENGTH = 100
+const MAX_PHONE_LENGTH = 20
 
 // Custom debounce hook
 function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
+      setDebouncedValue(value)
+    }, delay)
 
     return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
+      clearTimeout(handler)
+    }
+  }, [value, delay])
 
-  return debouncedValue;
+  return debouncedValue
 }
 
 // Validation functions
 const validateEmail = (email: string): boolean => {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return !email || re.test(email);
-};
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return !email || re.test(email)
+}
 
 const validatePhone = (phone: string): boolean => {
-  const re = /^[\d\s+()-]+$/;
-  return !phone || re.test(phone);
-};
+  const re = /^[\d\s+()-]+$/
+  return !phone || re.test(phone)
+}
 
 const validateUsername = (username: string): boolean => {
-  const re = /^[a-zA-Z0-9._-]+$/;
-  return re.test(username);
-};
+  const re = /^[a-zA-Z0-9._-]+$/
+  return re.test(username)
+}
 
 const sanitizeInput = (input: string): string => {
-  return input.trim().replace(/[<>]/g, '');
-};
+  return input.trim().replace(/[<>]/g, '')
+}
 
 const validateForm = (data: FormData, isEdit: boolean): string[] => {
-  const errors: string[] = [];
-  
+  const errors: string[] = []
+
   // Username validation
   if (!isEdit) {
     if (data.username.length < MIN_USERNAME_LENGTH) {
-      errors.push(`Benutzername muss mindestens ${MIN_USERNAME_LENGTH} Zeichen haben`);
+      errors.push(`Benutzername muss mindestens ${MIN_USERNAME_LENGTH} Zeichen haben`)
     }
     if (data.username.length > MAX_USERNAME_LENGTH) {
-      errors.push(`Benutzername darf maximal ${MAX_USERNAME_LENGTH} Zeichen haben`);
+      errors.push(`Benutzername darf maximal ${MAX_USERNAME_LENGTH} Zeichen haben`)
     }
     if (!validateUsername(data.username)) {
-      errors.push('Benutzername darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten');
+      errors.push(
+        'Benutzername darf nur Buchstaben, Zahlen, Punkt, Unterstrich und Bindestrich enthalten'
+      )
     }
   }
-  
+
   // Password validation
   if (!isEdit && data.password.length < MIN_PASSWORD_LENGTH) {
-    errors.push(`Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen haben`);
+    errors.push(`Passwort muss mindestens ${MIN_PASSWORD_LENGTH} Zeichen haben`)
   }
-  
+
   // Name validation
   if (!data.firstName.trim() || !data.lastName.trim()) {
-    errors.push('Vor- und Nachname sind erforderlich');
+    errors.push('Vor- und Nachname sind erforderlich')
   }
   if (data.firstName.length > MAX_NAME_LENGTH || data.lastName.length > MAX_NAME_LENGTH) {
-    errors.push(`Name darf maximal ${MAX_NAME_LENGTH} Zeichen haben`);
+    errors.push(`Name darf maximal ${MAX_NAME_LENGTH} Zeichen haben`)
   }
-  
+
   // Email validation
   if (data.email && !validateEmail(data.email)) {
-    errors.push('Ungültige E-Mail-Adresse');
+    errors.push('Ungültige E-Mail-Adresse')
   }
   if (data.email.length > MAX_EMAIL_LENGTH) {
-    errors.push(`E-Mail darf maximal ${MAX_EMAIL_LENGTH} Zeichen haben`);
+    errors.push(`E-Mail darf maximal ${MAX_EMAIL_LENGTH} Zeichen haben`)
   }
-  
+
   // Phone validation
   if (data.phone && !validatePhone(data.phone)) {
-    errors.push('Ungültige Telefonnummer');
+    errors.push('Ungültige Telefonnummer')
   }
-  
-  return errors;
-};
+
+  return errors
+}
 
 // Role configuration
 const ROLES = [
@@ -133,7 +135,7 @@ const ROLES = [
     borderColor: '#525252',
     bgColor: '#f9f9f9',
     hoverBg: '#f9f9f9',
-    badgeClass: 'bg-gray-100 text-gray-800'
+    badgeClass: 'bg-gray-100 text-gray-800',
   },
   {
     value: 'schichtleiter',
@@ -143,7 +145,7 @@ const ROLES = [
     borderColor: '#0076bc',
     bgColor: 'rgb(239 246 255)',
     hoverBg: 'rgb(239 246 255)',
-    badgeClass: 'bg-blue-100 text-blue-800'
+    badgeClass: 'bg-blue-100 text-blue-800',
   },
   {
     value: 'admin',
@@ -153,19 +155,19 @@ const ROLES = [
     borderColor: '#d32f2f',
     bgColor: 'rgb(254 242 242)',
     hoverBg: 'rgb(254 242 242)',
-    badgeClass: 'bg-red-100 text-red-800'
-  }
-];
+    badgeClass: 'bg-red-100 text-red-800',
+  },
+]
 
 export default function UserList({ initialUsers, canEdit, userRole }: Props) {
-  const router = useRouter();
-  const [users, setUsers] = useState<User[]>(initialUsers);
-  const [searchInput, setSearchInput] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
+  const router = useRouter()
+  const [users, setUsers] = useState<User[]>(initialUsers)
+  const [searchInput, setSearchInput] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
 
   const [formData, setFormData] = useState<FormData>({
     username: '',
@@ -175,33 +177,34 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
     lastName: '',
     phone: '',
     role: 'mitarbeiter',
-  });
+  })
 
   // Debounced search
-  const debouncedSearchTerm = useDebounce(searchInput, DEBOUNCE_DELAY);
+  const debouncedSearchTerm = useDebounce(searchInput, DEBOUNCE_DELAY)
 
   // Memoized filtered users
   const filteredUsers = useMemo(() => {
-    if (!debouncedSearchTerm) return users;
-    
-    const sanitizedTerm = sanitizeInput(debouncedSearchTerm).toLowerCase();
-    return users.filter((u) =>
-      u.username.toLowerCase().includes(sanitizedTerm) ||
-      u.firstName.toLowerCase().includes(sanitizedTerm) ||
-      u.lastName.toLowerCase().includes(sanitizedTerm) ||
-      (u.email && u.email.toLowerCase().includes(sanitizedTerm))
-    );
-  }, [users, debouncedSearchTerm]);
+    if (!debouncedSearchTerm) return users
+
+    const sanitizedTerm = sanitizeInput(debouncedSearchTerm).toLowerCase()
+    return users.filter(
+      (u) =>
+        u.username.toLowerCase().includes(sanitizedTerm) ||
+        u.firstName.toLowerCase().includes(sanitizedTerm) ||
+        u.lastName.toLowerCase().includes(sanitizedTerm) ||
+        (u.email && u.email.toLowerCase().includes(sanitizedTerm))
+    )
+  }, [users, debouncedSearchTerm])
 
   // Get role config
   const getRoleConfig = useCallback((role: string) => {
-    return ROLES.find(r => r.value === role) || ROLES[0];
-  }, []);
+    return ROLES.find((r) => r.value === role) || ROLES[0]
+  }, [])
 
   // Modal handlers
   const openModal = useCallback((user?: User) => {
     if (user) {
-      setEditingUser(user);
+      setEditingUser(user)
       setFormData({
         username: user.username,
         email: user.email || '',
@@ -210,9 +213,9 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
         lastName: user.lastName,
         phone: user.phone || '',
         role: user.role,
-      });
+      })
     } else {
-      setEditingUser(null);
+      setEditingUser(null)
       setFormData({
         username: '',
         email: '',
@@ -221,16 +224,16 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
         lastName: '',
         phone: '',
         role: 'mitarbeiter',
-      });
+      })
     }
-    setErrors([]);
-    setShowModal(true);
-  }, []);
+    setErrors([])
+    setShowModal(true)
+  }, [])
 
   const closeModal = useCallback(() => {
-    setShowModal(false);
-    setEditingUser(null);
-    setErrors([]);
+    setShowModal(false)
+    setEditingUser(null)
+    setErrors([])
     setFormData({
       username: '',
       email: '',
@@ -239,24 +242,24 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
       lastName: '',
       phone: '',
       role: 'mitarbeiter',
-    });
-  }, []);
+    })
+  }, [])
 
   // Save handler
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (loading) return;
-    
+    e.preventDefault()
+
+    if (loading) return
+
     // Validation
-    const validationErrors = validateForm(formData, !!editingUser);
+    const validationErrors = validateForm(formData, !!editingUser)
     if (validationErrors.length > 0) {
-      setErrors(validationErrors);
-      return;
+      setErrors(validationErrors)
+      return
     }
 
-    setLoading(true);
-    setErrors([]);
+    setLoading(true)
+    setErrors([])
 
     // Sanitize data
     const sanitizedData: FormData = {
@@ -267,130 +270,133 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
       lastName: sanitizeInput(formData.lastName),
       phone: sanitizeInput(formData.phone),
       role: formData.role,
-    };
+    }
 
     try {
-      const url = editingUser 
-        ? `/api/users/${editingUser.id}`
-        : '/api/users';
-      
-      const method = editingUser ? 'PUT' : 'POST';
+      const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users'
+
+      const method = editingUser ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest' // CSRF protection
+          'X-Requested-With': 'XMLHttpRequest', // CSRF protection
         },
         body: JSON.stringify(sanitizedData),
-        credentials: 'same-origin'
-      });
+        credentials: 'same-origin',
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Fehler beim Speichern');
+        throw new Error(data.error || 'Fehler beim Speichern')
       }
 
       // Optimistic update
       if (editingUser) {
-        setUsers(prev => prev.map(u => 
-          u.id === editingUser.id ? data.user : u
-        ));
+        setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? data.user : u)))
       } else {
-        setUsers(prev => [...prev, data.user]);
+        setUsers((prev) => [...prev, data.user])
       }
 
-      closeModal();
-      router.refresh();
+      closeModal()
+      router.refresh()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Netzwerkfehler';
-      setErrors([message]);
+      const message = err instanceof Error ? err.message : 'Netzwerkfehler'
+      setErrors([message])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   // Toggle active status
-  const handleToggleActive = useCallback(async (user: User) => {
-    const action = user.isActive ? 'deaktivieren' : 'aktivieren';
-    if (!confirm(`Möchten Sie ${user.firstName} ${user.lastName} wirklich ${action}?`)) return;
+  const handleToggleActive = useCallback(
+    async (user: User) => {
+      const action = user.isActive ? 'deaktivieren' : 'aktivieren'
+      if (!confirm(`Möchten Sie ${user.firstName} ${user.lastName} wirklich ${action}?`)) return
 
-    setActionLoadingId(user.id);
+      setActionLoadingId(user.id)
 
-    try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-          ...user,
-          isActive: !user.isActive,
-        }),
-        credentials: 'same-origin'
-      });
+      try {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          body: JSON.stringify({
+            ...user,
+            isActive: !user.isActive,
+          }),
+          credentials: 'same-origin',
+        })
 
-      const data = await response.json();
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Fehler beim Ändern des Status');
+        if (!response.ok) {
+          throw new Error(data.error || 'Fehler beim Ändern des Status')
+        }
+
+        // Optimistic update
+        setUsers((prev) => prev.map((u) => (u.id === user.id ? data.user : u)))
+
+        router.refresh()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Ändern des Status'
+        alert(message)
+      } finally {
+        setActionLoadingId(null)
       }
-
-      // Optimistic update
-      setUsers(prev => prev.map(u => 
-        u.id === user.id ? data.user : u
-      ));
-      
-      router.refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Fehler beim Ändern des Status';
-      alert(message);
-    } finally {
-      setActionLoadingId(null);
-    }
-  }, [router]);
+    },
+    [router]
+  )
 
   // Delete handler
-  const handleDelete = useCallback(async (user: User) => {
-    if (!confirm(`Möchten Sie ${user.firstName} ${user.lastName} wirklich löschen?`)) return;
+  const handleDelete = useCallback(
+    async (user: User) => {
+      if (!confirm(`Möchten Sie ${user.firstName} ${user.lastName} wirklich löschen?`)) return
 
-    setActionLoadingId(user.id);
+      setActionLoadingId(user.id)
 
-    try {
-      const response = await fetch(`/api/users/${user.id}`, {
-        method: 'DELETE',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'same-origin'
-      });
+      try {
+        const response = await fetch(`/api/users/${user.id}`, {
+          method: 'DELETE',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'same-origin',
+        })
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Fehler beim Löschen');
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error || 'Fehler beim Löschen')
+        }
+
+        // Optimistic update
+        setUsers((prev) => prev.filter((u) => u.id !== user.id))
+        router.refresh()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Löschen'
+        alert(message)
+      } finally {
+        setActionLoadingId(null)
       }
-
-      // Optimistic update
-      setUsers(prev => prev.filter(u => u.id !== user.id));
-      router.refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Fehler beim Löschen';
-      alert(message);
-    } finally {
-      setActionLoadingId(null);
-    }
-  }, [router]);
+    },
+    [router]
+  )
 
   // Form input handler
-  const handleInputChange = useCallback((field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear errors when user types
-    if (errors.length > 0) {
-      setErrors([]);
-    }
-  }, [errors.length]);
+  const handleInputChange = useCallback(
+    (field: keyof FormData, value: string) => {
+      setFormData((prev) => ({ ...prev, [field]: value }))
+      // Clear errors when user types
+      if (errors.length > 0) {
+        setErrors([])
+      }
+    },
+    [errors.length]
+  )
 
   return (
     <>
@@ -417,7 +423,12 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
 
@@ -433,8 +444,19 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-[#0076bc] focus:ring-offset-1"
               aria-label="Neuen Benutzer hinzufügen"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Neuer Benutzer
             </button>
@@ -480,10 +502,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               </thead>
               <tbody className="bg-white">
                 {filteredUsers.map((user, index) => {
-                  const roleConfig = getRoleConfig(user.role);
+                  const roleConfig = getRoleConfig(user.role)
                   return (
-                    <tr 
-                      key={user.id} 
+                    <tr
+                      key={user.id}
                       className={`${index !== filteredUsers.length - 1 ? 'border-b border-[#e6e6e6]' : ''} hover:bg-[#f9f9f9] transition-colors`}
                     >
                       <td className="px-3 py-2">
@@ -501,16 +523,20 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                         <div className="text-sm text-[#525252]">{user.phone || '-'}</div>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${roleConfig.badgeClass}`}>
+                        <span
+                          className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${roleConfig.badgeClass}`}
+                        >
                           {roleConfig.label}
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${
-                          user.isActive 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
+                        <span
+                          className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${
+                            user.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
                           {user.isActive ? 'Aktiv' : 'Inaktiv'}
                         </span>
                       </td>
@@ -530,9 +556,11 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                             className="inline-flex items-center px-2 py-1 text-xs rounded border border-[#f59e0b] text-[#f59e0b] bg-transparent transition-all hover:bg-[#f59e0b] hover:text-white mr-1 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-1"
                             aria-label={`${user.firstName} ${user.lastName} ${user.isActive ? 'deaktivieren' : 'aktivieren'}`}
                           >
-                            {actionLoadingId === user.id 
-                              ? 'Lädt...' 
-                              : (user.isActive ? 'Deaktivieren' : 'Aktivieren')}
+                            {actionLoadingId === user.id
+                              ? 'Lädt...'
+                              : user.isActive
+                                ? 'Deaktivieren'
+                                : 'Aktivieren'}
                           </button>
                           <button
                             onClick={() => handleDelete(user)}
@@ -545,7 +573,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                         </td>
                       )}
                     </tr>
-                  );
+                  )
                 })}
               </tbody>
             </table>
@@ -555,14 +583,14 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
 
       {/* Modal */}
       {showModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto"
           onClick={closeModal}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          <div 
+          <div
             className="bg-white rounded-sm border border-[#c6c6c6] w-full max-w-2xl shadow-lg my-8"
             onClick={(e) => e.stopPropagation()}
           >
@@ -572,7 +600,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               </h2>
 
               {errors.length > 0 && (
-                <div className="mb-3 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-sm text-sm" role="alert">
+                <div
+                  className="mb-3 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-sm text-sm"
+                  role="alert"
+                >
                   <ul className="list-disc list-inside">
                     {errors.map((error, index) => (
                       <li key={index}>{error}</li>
@@ -584,7 +615,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               <form onSubmit={handleSave} className="space-y-3" noValidate>
                 {/* Benutzername */}
                 <div>
-                  <label htmlFor="user-username" className="block font-semibold text-sm mb-1 text-[#525252]">
+                  <label
+                    htmlFor="user-username"
+                    className="block font-semibold text-sm mb-1 text-[#525252]"
+                  >
                     Benutzername *
                   </label>
                   <input
@@ -614,7 +648,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                 {/* Vorname & Nachname */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="user-firstname" className="block font-semibold text-sm mb-1 text-[#525252]">
+                    <label
+                      htmlFor="user-firstname"
+                      className="block font-semibold text-sm mb-1 text-[#525252]"
+                    >
                       Vorname *
                     </label>
                     <input
@@ -632,7 +669,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                     </span>
                   </div>
                   <div>
-                    <label htmlFor="user-lastname" className="block font-semibold text-sm mb-1 text-[#525252]">
+                    <label
+                      htmlFor="user-lastname"
+                      className="block font-semibold text-sm mb-1 text-[#525252]"
+                    >
                       Nachname *
                     </label>
                     <input
@@ -654,7 +694,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                 {/* E-Mail & Telefon */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label htmlFor="user-email" className="block font-semibold text-sm mb-1 text-[#525252]">
+                    <label
+                      htmlFor="user-email"
+                      className="block font-semibold text-sm mb-1 text-[#525252]"
+                    >
                       E-Mail (optional)
                     </label>
                     <input
@@ -672,7 +715,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                     </span>
                   </div>
                   <div>
-                    <label htmlFor="user-phone" className="block font-semibold text-sm mb-1 text-[#525252]">
+                    <label
+                      htmlFor="user-phone"
+                      className="block font-semibold text-sm mb-1 text-[#525252]"
+                    >
                       Telefon (optional)
                     </label>
                     <input
@@ -693,7 +739,10 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
 
                 {/* Passwort */}
                 <div>
-                  <label htmlFor="user-password" className="block font-semibold text-sm mb-1 text-[#525252]">
+                  <label
+                    htmlFor="user-password"
+                    className="block font-semibold text-sm mb-1 text-[#525252]"
+                  >
                     Passwort {editingUser ? '(leer lassen um nicht zu ändern)' : '*'}
                   </label>
                   <input
@@ -715,22 +764,24 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
 
                 {/* Rolle */}
                 <div>
-                  <label className="block font-semibold text-sm mb-2 text-[#525252]">
-                    Rolle *
-                  </label>
+                  <label className="block font-semibold text-sm mb-2 text-[#525252]">Rolle *</label>
                   <div className="space-y-2" role="radiogroup" aria-required="true">
                     {ROLES.map((role) => (
-                      <label 
+                      <label
                         key={role.value}
                         className={`flex items-center p-2 border rounded-sm cursor-pointer transition-all ${
-                          formData.role === role.value 
-                            ? `border-[${role.borderColor}]` 
+                          formData.role === role.value
+                            ? `border-[${role.borderColor}]`
                             : 'border-[#c6c6c6] bg-white hover:bg-gray-50'
                         }`}
-                        style={formData.role === role.value ? { 
-                          borderColor: role.borderColor,
-                          backgroundColor: role.bgColor 
-                        } : {}}
+                        style={
+                          formData.role === role.value
+                            ? {
+                                borderColor: role.borderColor,
+                                backgroundColor: role.bgColor,
+                              }
+                            : {}
+                        }
                       >
                         <input
                           type="radio"
@@ -741,7 +792,9 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                           className="w-4 h-4 mr-2"
                           aria-label={role.label}
                         />
-                        <span className={`px-2 py-0.5 text-xs font-semibold rounded ${role.badgeClass}`}>
+                        <span
+                          className={`px-2 py-0.5 text-xs font-semibold rounded ${role.badgeClass}`}
+                        >
                           {role.label}
                         </span>
                         <span className="ml-auto text-xs text-gray-500">{role.description}</span>
@@ -774,5 +827,5 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
         </div>
       )}
     </>
-  );
+  )
 }

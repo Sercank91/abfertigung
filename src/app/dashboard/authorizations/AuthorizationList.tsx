@@ -1,283 +1,285 @@
-'use client';
+'use client'
 
-import React, { useState, useMemo, useCallback, useTransition, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useTransition, useEffect } from 'react'
 
 // Types
 interface Authorization {
-  id: string;
-  name: string;
-  description: string | null;
-  code: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string
+  description: string | null
+  code: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 interface Props {
-  initialAuthorizations: Authorization[];
-  canEdit: boolean;
+  initialAuthorizations: Authorization[]
+  canEdit: boolean
 }
 
 interface FormData {
-  name: string;
-  description: string;
-  code: string;
-  isActive: boolean;
+  name: string
+  description: string
+  code: string
+  isActive: boolean
 }
 
 interface ApiError {
-  error: string;
-  details?: Record<string, string>;
+  error: string
+  details?: Record<string, string>
 }
 
 // Constants
-const DEBOUNCE_DELAY = 300;
-const MIN_NAME_LENGTH = 2;
-const MAX_NAME_LENGTH = 100;
-const MIN_CODE_LENGTH = 3;
-const MAX_CODE_LENGTH = 50;
-const MAX_DESCRIPTION_LENGTH = 500;
+const DEBOUNCE_DELAY = 300
+const MIN_NAME_LENGTH = 2
+const MAX_NAME_LENGTH = 100
+const MIN_CODE_LENGTH = 3
+const MAX_CODE_LENGTH = 50
+const MAX_DESCRIPTION_LENGTH = 500
 
 // Custom debounce hook
 function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
 
   useEffect(() => {
     const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
+      setDebouncedValue(value)
+    }, delay)
 
     return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
+      clearTimeout(handler)
+    }
+  }, [value, delay])
 
-  return debouncedValue;
+  return debouncedValue
 }
 
 // Validation
 const validateForm = (data: FormData): string[] => {
-  const errors: string[] = [];
-  
+  const errors: string[] = []
+
   // Name validation
   if (data.name.length < MIN_NAME_LENGTH) {
-    errors.push(`Name muss mindestens ${MIN_NAME_LENGTH} Zeichen haben`);
+    errors.push(`Name muss mindestens ${MIN_NAME_LENGTH} Zeichen haben`)
   }
   if (data.name.length > MAX_NAME_LENGTH) {
-    errors.push(`Name darf maximal ${MAX_NAME_LENGTH} Zeichen haben`);
+    errors.push(`Name darf maximal ${MAX_NAME_LENGTH} Zeichen haben`)
   }
   if (!/^[a-zA-Z0-9\s\-_.]+$/.test(data.name)) {
-    errors.push('Name enthält ungültige Zeichen');
+    errors.push('Name enthält ungültige Zeichen')
   }
-  
+
   // Code validation
   if (data.code.length < MIN_CODE_LENGTH) {
-    errors.push(`Code muss mindestens ${MIN_CODE_LENGTH} Zeichen haben`);
+    errors.push(`Code muss mindestens ${MIN_CODE_LENGTH} Zeichen haben`)
   }
   if (data.code.length > MAX_CODE_LENGTH) {
-    errors.push(`Code darf maximal ${MAX_CODE_LENGTH} Zeichen haben`);
+    errors.push(`Code darf maximal ${MAX_CODE_LENGTH} Zeichen haben`)
   }
   if (!/^[A-Z0-9]+$/.test(data.code)) {
-    errors.push('Code darf nur Großbuchstaben und Zahlen enthalten');
+    errors.push('Code darf nur Großbuchstaben und Zahlen enthalten')
   }
-  
+
   // Description validation
   if (data.description && data.description.length > MAX_DESCRIPTION_LENGTH) {
-    errors.push(`Beschreibung darf maximal ${MAX_DESCRIPTION_LENGTH} Zeichen haben`);
+    errors.push(`Beschreibung darf maximal ${MAX_DESCRIPTION_LENGTH} Zeichen haben`)
   }
-  
-  return errors;
-};
+
+  return errors
+}
 
 // Sanitize input
 const sanitizeInput = (input: string): string => {
-  return input.trim().replace(/[<>]/g, '');
-};
+  return input.trim().replace(/[<>]/g, '')
+}
 
 export default function AuthorizationList({ initialAuthorizations, canEdit }: Props) {
-  const [authorizations, setAuthorizations] = useState<Authorization[]>(initialAuthorizations);
-  const [searchInput, setSearchInput] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAuth, setEditingAuth] = useState<Authorization | null>(null);
+  const [authorizations, setAuthorizations] = useState<Authorization[]>(initialAuthorizations)
+  const [searchInput, setSearchInput] = useState('')
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingAuth, setEditingAuth] = useState<Authorization | null>(null)
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
     code: '',
-    isActive: true
-  });
-  const [loading, setLoading] = useState(false);
-  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null);
-  const [errors, setErrors] = useState<string[]>([]);
-  const [isPending, startTransition] = useTransition();
+    isActive: true,
+  })
+  const [loading, setLoading] = useState(false)
+  const [deleteLoadingId, setDeleteLoadingId] = useState<string | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
+  const [isPending, startTransition] = useTransition()
 
   // Debounced search term
-  const debouncedSearchTerm = useDebounce(searchInput, DEBOUNCE_DELAY);
+  const debouncedSearchTerm = useDebounce(searchInput, DEBOUNCE_DELAY)
 
   // Memoized filter with sanitized search
   const filteredAuthorizations = useMemo(() => {
-    if (!debouncedSearchTerm) return authorizations;
-    
-    const sanitizedTerm = sanitizeInput(debouncedSearchTerm).toLowerCase();
-    return authorizations.filter(auth =>
-      auth.name.toLowerCase().includes(sanitizedTerm) ||
-      auth.code.toLowerCase().includes(sanitizedTerm) ||
-      (auth.description && auth.description.toLowerCase().includes(sanitizedTerm))
-    );
-  }, [authorizations, debouncedSearchTerm]);
+    if (!debouncedSearchTerm) return authorizations
+
+    const sanitizedTerm = sanitizeInput(debouncedSearchTerm).toLowerCase()
+    return authorizations.filter(
+      (auth) =>
+        auth.name.toLowerCase().includes(sanitizedTerm) ||
+        auth.code.toLowerCase().includes(sanitizedTerm) ||
+        (auth.description && auth.description.toLowerCase().includes(sanitizedTerm))
+    )
+  }, [authorizations, debouncedSearchTerm])
 
   // Modal handlers
   const openModal = useCallback((auth?: Authorization) => {
     if (auth) {
-      setEditingAuth(auth);
+      setEditingAuth(auth)
       setFormData({
         name: auth.name,
         description: auth.description || '',
         code: auth.code,
-        isActive: auth.isActive
-      });
+        isActive: auth.isActive,
+      })
     } else {
-      setEditingAuth(null);
+      setEditingAuth(null)
       setFormData({
         name: '',
         description: '',
         code: '',
-        isActive: true
-      });
+        isActive: true,
+      })
     }
-    setErrors([]);
-    setIsModalOpen(true);
-  }, []);
+    setErrors([])
+    setIsModalOpen(true)
+  }, [])
 
   const closeModal = useCallback(() => {
-    setIsModalOpen(false);
-    setEditingAuth(null);
+    setIsModalOpen(false)
+    setEditingAuth(null)
     setFormData({
       name: '',
       description: '',
       code: '',
-      isActive: true
-    });
-    setErrors([]);
-  }, []);
+      isActive: true,
+    })
+    setErrors([])
+  }, [])
 
   // Submit handler with validation
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+    e.preventDefault()
+
     // Prevent double submission
-    if (loading) return;
-    
+    if (loading) return
+
     // Client-side validation
-    const validationErrors = validateForm(formData);
+    const validationErrors = validateForm(formData)
     if (validationErrors.length > 0) {
-      setErrors(validationErrors);
-      return;
+      setErrors(validationErrors)
+      return
     }
-    
-    setLoading(true);
-    setErrors([]);
+
+    setLoading(true)
+    setErrors([])
 
     // Sanitize data
     const sanitizedData: FormData = {
       name: sanitizeInput(formData.name),
       description: sanitizeInput(formData.description),
       code: sanitizeInput(formData.code).toUpperCase(),
-      isActive: formData.isActive
-    };
+      isActive: formData.isActive,
+    }
 
     try {
-      const url = editingAuth
-        ? `/api/authorizations/${editingAuth.id}`
-        : '/api/authorizations';
-      
-      const method = editingAuth ? 'PUT' : 'POST';
+      const url = editingAuth ? `/api/authorizations/${editingAuth.id}` : '/api/authorizations'
+
+      const method = editingAuth ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest' // CSRF protection
+          'X-Requested-With': 'XMLHttpRequest', // CSRF protection
         },
         body: JSON.stringify(sanitizedData),
-        credentials: 'same-origin' // Include cookies
-      });
+        credentials: 'same-origin', // Include cookies
+      })
 
-      const data: ApiError | { authorization: Authorization } = await response.json();
+      const data: ApiError | { authorization: Authorization } = await response.json()
 
       if (!response.ok) {
-        const error = data as ApiError;
-        throw new Error(error.error || 'Fehler beim Speichern');
+        const error = data as ApiError
+        throw new Error(error.error || 'Fehler beim Speichern')
       }
 
-      const result = data as { authorization: Authorization };
+      const result = data as { authorization: Authorization }
 
       // Optimistic update
       if (editingAuth) {
-        setAuthorizations(prev => prev.map(auth =>
-          auth.id === editingAuth.id ? result.authorization : auth
-        ));
+        setAuthorizations((prev) =>
+          prev.map((auth) => (auth.id === editingAuth.id ? result.authorization : auth))
+        )
       } else {
-        setAuthorizations(prev => [...prev, result.authorization]);
+        setAuthorizations((prev) => [...prev, result.authorization])
       }
 
-      closeModal();
+      closeModal()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ein unerwarteter Fehler ist aufgetreten';
-      setErrors([message]);
+      const message = err instanceof Error ? err.message : 'Ein unerwarteter Fehler ist aufgetreten'
+      setErrors([message])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   // Delete handler with confirmation
   const handleDelete = useCallback(async (id: string, name: string) => {
     // Custom confirm dialog würde hier besser sein
     if (!confirm(`Möchten Sie die Bewilligung "${name}" wirklich löschen?`)) {
-      return;
+      return
     }
 
-    setDeleteLoadingId(id);
+    setDeleteLoadingId(id)
 
     try {
       const response = await fetch(`/api/authorizations/${id}`, {
         method: 'DELETE',
         headers: {
-          'X-Requested-With': 'XMLHttpRequest' // CSRF protection
+          'X-Requested-With': 'XMLHttpRequest', // CSRF protection
         },
-        credentials: 'same-origin'
-      });
+        credentials: 'same-origin',
+      })
 
       if (!response.ok) {
-        const data: ApiError = await response.json();
-        throw new Error(data.error || 'Fehler beim Löschen');
+        const data: ApiError = await response.json()
+        throw new Error(data.error || 'Fehler beim Löschen')
       }
 
       // Optimistic update
-      setAuthorizations(prev => prev.filter(auth => auth.id !== id));
+      setAuthorizations((prev) => prev.filter((auth) => auth.id !== id))
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Fehler beim Löschen';
+      const message = err instanceof Error ? err.message : 'Fehler beim Löschen'
       // Bessere Error-Anzeige statt alert
-      alert(message);
+      alert(message)
     } finally {
-      setDeleteLoadingId(null);
+      setDeleteLoadingId(null)
     }
-  }, []);
+  }, [])
 
   // Form input handler mit Validation
-  const handleInputChange = useCallback((field: keyof FormData, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    // Clear errors when user types
-    if (errors.length > 0) {
-      setErrors([]);
-    }
-  }, [errors.length]);
+  const handleInputChange = useCallback(
+    (field: keyof FormData, value: string | boolean) => {
+      setFormData((prev) => ({ ...prev, [field]: value }))
+      // Clear errors when user types
+      if (errors.length > 0) {
+        setErrors([])
+      }
+    },
+    [errors.length]
+  )
 
   // Handle search input
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     startTransition(() => {
-      setSearchInput(e.target.value);
-    });
-  }, []);
+      setSearchInput(e.target.value)
+    })
+  }, [])
 
   return (
     <>
@@ -304,12 +306,21 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
 
           {/* Counter */}
-          <div className="text-xs text-[#525252] whitespace-nowrap" role="status" aria-live="polite">
+          <div
+            className="text-xs text-[#525252] whitespace-nowrap"
+            role="status"
+            aria-live="polite"
+          >
             {isPending ? (
               <span className="opacity-50">Suche...</span>
             ) : (
@@ -324,8 +335,19 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-[#0076bc] focus:ring-offset-1"
               aria-label="Neue Bewilligung hinzufügen"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Neue Bewilligung
             </button>
@@ -365,8 +387,8 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               </thead>
               <tbody className="bg-white">
                 {filteredAuthorizations.map((auth, index) => (
-                  <tr 
-                    key={auth.id} 
+                  <tr
+                    key={auth.id}
                     className={`${index !== filteredAuthorizations.length - 1 ? 'border-b border-[#e6e6e6]' : ''} hover:bg-[#f9f9f9] transition-colors`}
                   >
                     <td className="px-3 py-2">
@@ -379,11 +401,11 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
                       <div className="text-sm text-[#525252]">{auth.description || '-'}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${
-                        auth.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 inline-flex text-xs font-semibold rounded ${
+                          auth.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}
+                      >
                         {auth.isActive ? 'Aktiv' : 'Inaktiv'}
                       </span>
                     </td>
@@ -416,14 +438,14 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
 
       {/* Modal */}
       {isModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
           onClick={closeModal}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
-          <div 
+          <div
             className="bg-white rounded-sm border border-[#c6c6c6] max-w-md w-full shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
@@ -433,7 +455,10 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               </h2>
 
               {errors.length > 0 && (
-                <div className="mb-3 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-sm text-sm" role="alert">
+                <div
+                  className="mb-3 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-sm text-sm"
+                  role="alert"
+                >
                   <ul className="list-disc list-inside">
                     {errors.map((error, index) => (
                       <li key={index}>{error}</li>
@@ -445,7 +470,10 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               <form onSubmit={handleSubmit} className="space-y-3" noValidate>
                 {/* Name */}
                 <div>
-                  <label htmlFor="auth-name" className="block font-semibold text-sm mb-1 text-[#525252]">
+                  <label
+                    htmlFor="auth-name"
+                    className="block font-semibold text-sm mb-1 text-[#525252]"
+                  >
                     Name *
                   </label>
                   <input
@@ -467,7 +495,10 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
 
                 {/* Code */}
                 <div>
-                  <label htmlFor="auth-code" className="block font-semibold text-sm mb-1 text-[#525252]">
+                  <label
+                    htmlFor="auth-code"
+                    className="block font-semibold text-sm mb-1 text-[#525252]"
+                  >
                     Code *
                   </label>
                   <input
@@ -490,7 +521,10 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
 
                 {/* Description */}
                 <div>
-                  <label htmlFor="auth-description" className="block font-semibold text-sm mb-1 text-[#525252]">
+                  <label
+                    htmlFor="auth-description"
+                    className="block font-semibold text-sm mb-1 text-[#525252]"
+                  >
                     Beschreibung (optional)
                   </label>
                   <textarea
@@ -552,5 +586,5 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
         </div>
       )}
     </>
-  );
+  )
 }

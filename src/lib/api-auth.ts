@@ -1,25 +1,25 @@
-import { NextRequest } from 'next/server';
-import { jwtVerify } from 'jose';
+import { NextRequest } from 'next/server'
+import { jwtVerify } from 'jose'
 
 // ✅ JWT Secret mit Validierung
 if (!process.env.JWT_SECRET) {
-  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
+  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!')
 }
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
 
 /**
  * User-Daten aus JWT Token
  */
 export interface AuthUser {
-  id: string;
-  username: string;
-  email?: string;
-  firstName: string;
-  lastName: string;
-  tenantId: string;
-  tenantName: string;
-  role: string;
+  id: string
+  username: string
+  email?: string
+  firstName: string
+  lastName: string
+  tenantId: string
+  tenantName: string
+  role: string
 }
 
 /**
@@ -40,19 +40,19 @@ export interface AuthUser {
  */
 export async function getUserFromToken(request: NextRequest): Promise<AuthUser | null> {
   try {
-    const token = request.cookies.get('auth-token')?.value;
+    const token = request.cookies.get('auth-token')?.value
 
     if (!token) {
-      return null;
+      return null
     }
 
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, SECRET)
 
-    return payload as AuthUser;
+    return payload as AuthUser
   } catch (error) {
     // Token ist ungültig oder abgelaufen
-    console.error('Token verification failed:', error);
-    return null;
+    console.error('Token verification failed:', error)
+    return null
   }
 }
 
@@ -74,13 +74,13 @@ export async function getUserFromToken(request: NextRequest): Promise<AuthUser |
  * ```
  */
 export async function requireAuth(request: NextRequest): Promise<AuthUser> {
-  const user = await getUserFromToken(request);
+  const user = await getUserFromToken(request)
 
   if (!user) {
-    throw new Error('UNAUTHORIZED');
+    throw new Error('UNAUTHORIZED')
   }
 
-  return user;
+  return user
 }
 
 /**
@@ -99,7 +99,7 @@ export async function requireAuth(request: NextRequest): Promise<AuthUser> {
  * ```
  */
 export function hasRole(user: AuthUser, allowedRoles: string[]): boolean {
-  return allowedRoles.includes(user.role);
+  return allowedRoles.includes(user.role)
 }
 
 /**
@@ -117,6 +117,6 @@ export function hasRole(user: AuthUser, allowedRoles: string[]): boolean {
  */
 export function requireRole(user: AuthUser, allowedRoles: string[]): void {
   if (!hasRole(user, allowedRoles)) {
-    throw new Error('FORBIDDEN');
+    throw new Error('FORBIDDEN')
   }
 }

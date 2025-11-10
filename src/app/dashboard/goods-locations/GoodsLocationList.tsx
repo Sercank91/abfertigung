@@ -1,21 +1,21 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 
 interface GoodsLocation {
-  id: string;
-  name: string;
-  code: string | null;
-  description: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string
+  code: string | null
+  description: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }
 
 interface GoodsLocationListProps {
-  initialGoodsLocations: GoodsLocation[];
-  canEdit: boolean;
-  userRole: string;
+  initialGoodsLocations: GoodsLocation[]
+  canEdit: boolean
+  userRole: string
 }
 
 export default function GoodsLocationList({
@@ -23,91 +23,91 @@ export default function GoodsLocationList({
   canEdit,
   userRole,
 }: GoodsLocationListProps) {
-  const [goodsLocations, setGoodsLocations] = useState<GoodsLocation[]>(initialGoodsLocations);
-  const [filteredLocations, setFilteredLocations] = useState<GoodsLocation[]>(initialGoodsLocations);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<GoodsLocation | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [goodsLocations, setGoodsLocations] = useState<GoodsLocation[]>(initialGoodsLocations)
+  const [filteredLocations, setFilteredLocations] = useState<GoodsLocation[]>(initialGoodsLocations)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<GoodsLocation | null>(null)
+  const [loading, setLoading] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     description: '',
-  });
+  })
 
   const handleSearch = (value: string) => {
-    setSearchTerm(value);
+    setSearchTerm(value)
     const filtered = goodsLocations.filter(
       (location) =>
         location.name.toLowerCase().includes(value.toLowerCase()) ||
         location.code?.toLowerCase().includes(value.toLowerCase()) ||
         location.description?.toLowerCase().includes(value.toLowerCase())
-    );
-    setFilteredLocations(filtered);
-  };
+    )
+    setFilteredLocations(filtered)
+  }
 
   const fetchGoodsLocations = async () => {
     try {
       const response = await fetch('/api/goods-locations', {
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        const data = await response.json();
-        setGoodsLocations(data.goodsLocations);
-        setFilteredLocations(data.goodsLocations);
+        const data = await response.json()
+        setGoodsLocations(data.goodsLocations)
+        setFilteredLocations(data.goodsLocations)
       }
     } catch (error) {
-      console.error('Error fetching goods locations:', error);
+      console.error('Error fetching goods locations:', error)
     }
-  };
+  }
 
   const handleOpenModal = (location?: GoodsLocation) => {
     if (location) {
-      setEditingLocation(location);
+      setEditingLocation(location)
       setFormData({
         name: location.name,
         code: location.code || '',
         description: location.description || '',
-      });
+      })
     } else {
-      setEditingLocation(null);
+      setEditingLocation(null)
       setFormData({
         name: '',
         code: '',
         description: '',
-      });
+      })
     }
-    setShowModal(true);
-  };
+    setShowModal(true)
+  }
 
   const handleCloseModal = () => {
-    setShowModal(false);
-    setEditingLocation(null);
+    setShowModal(false)
+    setEditingLocation(null)
     setFormData({
       name: '',
       code: '',
       description: '',
-    });
-  };
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
     if (!formData.name.trim()) {
-      alert('Bitte geben Sie einen Namen ein');
-      return;
+      alert('Bitte geben Sie einen Namen ein')
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
 
     try {
       const url = editingLocation
         ? `/api/goods-locations/${editingLocation.id}`
-        : '/api/goods-locations';
-      const method = editingLocation ? 'PUT' : 'POST';
+        : '/api/goods-locations'
+      const method = editingLocation ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
@@ -116,42 +116,42 @@ export default function GoodsLocationList({
         },
         credentials: 'include',
         body: JSON.stringify(formData),
-      });
+      })
 
       if (response.ok) {
-        await fetchGoodsLocations();
-        handleCloseModal();
+        await fetchGoodsLocations()
+        handleCloseModal()
       } else {
-        const data = await response.json();
-        alert(data.error || 'Fehler beim Speichern');
+        const data = await response.json()
+        alert(data.error || 'Fehler beim Speichern')
       }
     } catch (error) {
-      console.error('Error saving goods location:', error);
-      alert('Fehler beim Speichern');
+      console.error('Error saving goods location:', error)
+      alert('Fehler beim Speichern')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleDelete = async (locationId: string) => {
-    if (!confirm('Möchten Sie diesen Warenort wirklich löschen?')) return;
+    if (!confirm('Möchten Sie diesen Warenort wirklich löschen?')) return
 
     try {
       const response = await fetch(`/api/goods-locations/${locationId}`, {
         method: 'DELETE',
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        await fetchGoodsLocations();
+        await fetchGoodsLocations()
       } else {
-        alert('Fehler beim Löschen');
+        alert('Fehler beim Löschen')
       }
     } catch (error) {
-      console.error('Error deleting goods location:', error);
-      alert('Fehler beim Löschen');
+      console.error('Error deleting goods location:', error)
+      alert('Fehler beim Löschen')
     }
-  };
+  }
 
   return (
     <>
@@ -175,7 +175,12 @@ export default function GoodsLocationList({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
 
@@ -191,7 +196,12 @@ export default function GoodsLocationList({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white whitespace-nowrap"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Neuer Warenort
             </button>
@@ -228,8 +238,8 @@ export default function GoodsLocationList({
               </thead>
               <tbody className="bg-white">
                 {filteredLocations.map((location, index) => (
-                  <tr 
-                    key={location.id} 
+                  <tr
+                    key={location.id}
                     className={`${index !== filteredLocations.length - 1 ? 'border-b border-[#e6e6e6]' : ''} hover:bg-[#f9f9f9] transition-colors`}
                   >
                     <td className="px-3 py-2">
@@ -239,9 +249,7 @@ export default function GoodsLocationList({
                       <div className="text-sm text-[#525252]">{location.code || '-'}</div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="text-sm text-[#525252]">
-                        {location.description || '-'}
-                      </div>
+                      <div className="text-sm text-[#525252]">{location.description || '-'}</div>
                     </td>
                     {canEdit && (
                       <td className="px-3 py-2 text-right">
@@ -279,9 +287,7 @@ export default function GoodsLocationList({
               <form onSubmit={handleSubmit} className="space-y-3">
                 {/* Name */}
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[#525252]">
-                    Name *
-                  </label>
+                  <label className="block font-semibold text-sm mb-1 text-[#525252]">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -335,7 +341,7 @@ export default function GoodsLocationList({
                     className="inline-flex items-center px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white"
                     disabled={loading}
                   >
-                    {loading ? 'Speichert...' : (editingLocation ? 'Speichern' : 'Erstellen')}
+                    {loading ? 'Speichert...' : editingLocation ? 'Speichern' : 'Erstellen'}
                   </button>
                 </div>
               </form>
@@ -344,5 +350,5 @@ export default function GoodsLocationList({
         </div>
       )}
     </>
-  );
+  )
 }

@@ -1,105 +1,166 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 
 interface CustomsOffice {
-  id: string;
-  code: string;
-  name: string;
-  countryCode: string;
-  city: string | null;
+  id: string
+  code: string
+  name: string
+  countryCode: string
+  city: string | null
 }
 
 interface RouteTransitOffice {
-  id: string;
-  order: number;
-  customsOffice: CustomsOffice;
+  id: string
+  order: number
+  customsOffice: CustomsOffice
 }
 
 interface Route {
-  id: string;
-  name: string;
-  description: string | null;
-  countries: string[];
-  isActive: boolean;
-  transitOffices: RouteTransitOffice[];
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  name: string
+  description: string | null
+  countries: string[]
+  isActive: boolean
+  transitOffices: RouteTransitOffice[]
+  createdAt: string
+  updatedAt: string
 }
 
 interface RouteListProps {
-  initialRoutes: Route[];
-  initialCustomsOffices: CustomsOffice[];
-  canEdit: boolean;
-  userRole: string;
+  initialRoutes: Route[]
+  initialCustomsOffices: CustomsOffice[]
+  canEdit: boolean
+  userRole: string
 }
 
 // Transliteration: Kyrillisch & Griechisch → Latein
 function transliterate(text: string): string {
   const toLatin: { [key: string]: string } = {
     // Bulgarisch & Russisch (Kyrillisch)
-    'А': 'A', 'а': 'a',
-    'Б': 'B', 'б': 'b',
-    'В': 'V', 'в': 'v',
-    'Г': 'G', 'г': 'g',
-    'Д': 'D', 'д': 'd',
-    'Е': 'E', 'е': 'e',
-    'Ж': 'Zh', 'ж': 'zh',
-    'З': 'Z', 'з': 'z',
-    'И': 'I', 'и': 'i',
-    'Й': 'Y', 'й': 'y',
-    'К': 'K', 'к': 'k',
-    'Л': 'L', 'л': 'l',
-    'М': 'M', 'м': 'm',
-    'Н': 'N', 'н': 'n',
-    'О': 'O', 'о': 'o',
-    'П': 'P', 'п': 'p',
-    'Р': 'R', 'р': 'r',
-    'С': 'S', 'с': 's',
-    'Т': 'T', 'т': 't',
-    'У': 'U', 'у': 'u',
-    'Ф': 'F', 'ф': 'f',
-    'Х': 'H', 'х': 'h',
-    'Ц': 'Ts', 'ц': 'ts',
-    'Ч': 'Ch', 'ч': 'ch',
-    'Ш': 'Sh', 'ш': 'sh',
-    'Щ': 'Sht', 'щ': 'sht',
-    'Ъ': 'A', 'ъ': 'a',
-    'Ь': '', 'ь': '',
-    'Ю': 'Yu', 'ю': 'yu',
-    'Я': 'Ya', 'я': 'ya',
-    'Ё': 'Yo', 'ё': 'yo',
-    'Ы': 'Y', 'ы': 'y',
-    'Э': 'E', 'э': 'e',
-    
-    // Griechisch
-    'Α': 'A', 'α': 'a',
-    'Β': 'V', 'β': 'v',
-    'Γ': 'G', 'γ': 'g',
-    'Δ': 'D', 'δ': 'd',
-    'Ε': 'E', 'ε': 'e',
-    'Ζ': 'Z', 'ζ': 'z',
-    'Η': 'I', 'η': 'i',
-    'Θ': 'Th', 'θ': 'th',
-    'Ι': 'I', 'ι': 'i',
-    'Κ': 'K', 'κ': 'k',
-    'Λ': 'L', 'λ': 'l',
-    'Μ': 'M', 'μ': 'm',
-    'Ν': 'N', 'ν': 'n',
-    'Ξ': 'X', 'ξ': 'x',
-    'Ο': 'O', 'ο': 'o',
-    'Π': 'P', 'π': 'p',
-    'Ρ': 'R', 'ρ': 'r',
-    'Σ': 'S', 'σ': 's', 'ς': 's',  // ς = finales Sigma
-    'Τ': 'T', 'τ': 't',
-    'Υ': 'Y', 'υ': 'y',
-    'Φ': 'F', 'φ': 'f',
-    'Χ': 'Ch', 'χ': 'ch',
-    'Ψ': 'Ps', 'ψ': 'ps',
-    'Ω': 'O', 'ω': 'o',
-  };
+    А: 'A',
+    а: 'a',
+    Б: 'B',
+    б: 'b',
+    В: 'V',
+    в: 'v',
+    Г: 'G',
+    г: 'g',
+    Д: 'D',
+    д: 'd',
+    Е: 'E',
+    е: 'e',
+    Ж: 'Zh',
+    ж: 'zh',
+    З: 'Z',
+    з: 'z',
+    И: 'I',
+    и: 'i',
+    Й: 'Y',
+    й: 'y',
+    К: 'K',
+    к: 'k',
+    Л: 'L',
+    л: 'l',
+    М: 'M',
+    м: 'm',
+    Н: 'N',
+    н: 'n',
+    О: 'O',
+    о: 'o',
+    П: 'P',
+    п: 'p',
+    Р: 'R',
+    р: 'r',
+    С: 'S',
+    с: 's',
+    Т: 'T',
+    т: 't',
+    У: 'U',
+    у: 'u',
+    Ф: 'F',
+    ф: 'f',
+    Х: 'H',
+    х: 'h',
+    Ц: 'Ts',
+    ц: 'ts',
+    Ч: 'Ch',
+    ч: 'ch',
+    Ш: 'Sh',
+    ш: 'sh',
+    Щ: 'Sht',
+    щ: 'sht',
+    Ъ: 'A',
+    ъ: 'a',
+    Ь: '',
+    ь: '',
+    Ю: 'Yu',
+    ю: 'yu',
+    Я: 'Ya',
+    я: 'ya',
+    Ё: 'Yo',
+    ё: 'yo',
+    Ы: 'Y',
+    ы: 'y',
+    Э: 'E',
+    э: 'e',
 
-  return text.split('').map(char => toLatin[char] || char).join('');
+    // Griechisch
+    Α: 'A',
+    α: 'a',
+    Β: 'V',
+    β: 'v',
+    Γ: 'G',
+    γ: 'g',
+    Δ: 'D',
+    δ: 'd',
+    Ε: 'E',
+    ε: 'e',
+    Ζ: 'Z',
+    ζ: 'z',
+    Η: 'I',
+    η: 'i',
+    Θ: 'Th',
+    θ: 'th',
+    Ι: 'I',
+    ι: 'i',
+    Κ: 'K',
+    κ: 'k',
+    Λ: 'L',
+    λ: 'l',
+    Μ: 'M',
+    μ: 'm',
+    Ν: 'N',
+    ν: 'n',
+    Ξ: 'X',
+    ξ: 'x',
+    Ο: 'O',
+    ο: 'o',
+    Π: 'P',
+    π: 'p',
+    Ρ: 'R',
+    ρ: 'r',
+    Σ: 'S',
+    σ: 's',
+    ς: 's', // ς = finales Sigma
+    Τ: 'T',
+    τ: 't',
+    Υ: 'Y',
+    υ: 'y',
+    Φ: 'F',
+    φ: 'f',
+    Χ: 'Ch',
+    χ: 'ch',
+    Ψ: 'Ps',
+    ψ: 'ps',
+    Ω: 'O',
+    ω: 'o',
+  }
+
+  return text
+    .split('')
+    .map((char) => toLatin[char] || char)
+    .join('')
 }
 
 export default function RouteList({
@@ -108,12 +169,12 @@ export default function RouteList({
   canEdit,
   userRole,
 }: RouteListProps) {
-  const [routes, setRoutes] = useState<Route[]>(initialRoutes);
-  const [customsOffices] = useState<CustomsOffice[]>(initialCustomsOffices);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingRoute, setEditingRoute] = useState<Route | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [routes, setRoutes] = useState<Route[]>(initialRoutes)
+  const [customsOffices] = useState<CustomsOffice[]>(initialCustomsOffices)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingRoute, setEditingRoute] = useState<Route | null>(null)
+  const [loading, setLoading] = useState(false)
 
   // Form state
   const [formData, setFormData] = useState({
@@ -121,15 +182,15 @@ export default function RouteList({
     description: '',
     countries: [] as string[],
     transitOfficeIds: [] as string[],
-  });
+  })
 
   // Customs Offices für Dropdown
-  const [selectedOffices, setSelectedOffices] = useState<CustomsOffice[]>([]);
-  const [officeSearch, setOfficeSearch] = useState('');
-  const [officeSearchResults, setOfficeSearchResults] = useState<CustomsOffice[]>([]);
+  const [selectedOffices, setSelectedOffices] = useState<CustomsOffice[]>([])
+  const [officeSearch, setOfficeSearch] = useState('')
+  const [officeSearchResults, setOfficeSearchResults] = useState<CustomsOffice[]>([])
 
   // Country input
-  const [countryInput, setCountryInput] = useState('');
+  const [countryInput, setCountryInput] = useState('')
 
   // Filter routes
   const filteredRoutes = routes.filter(
@@ -137,141 +198,141 @@ export default function RouteList({
       route.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       route.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       route.countries.some((c) => c.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  )
 
   const fetchRoutes = async () => {
     try {
       const response = await fetch('/api/routes', {
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        const data = await response.json();
-        setRoutes(data.routes);
+        const data = await response.json()
+        setRoutes(data.routes)
       }
     } catch (error) {
-      console.error('Error fetching routes:', error);
+      console.error('Error fetching routes:', error)
     }
-  };
+  }
 
   const searchCustomsOffices = async (search: string) => {
     if (!search || search.length < 2) {
-      setOfficeSearchResults([]);
-      return;
+      setOfficeSearchResults([])
+      return
     }
 
     try {
-      const params = new URLSearchParams({ search, limit: '20' });
+      const params = new URLSearchParams({ search, limit: '20' })
       const response = await fetch(`/api/customs-offices?${params}`, {
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        const data = await response.json();
-        setOfficeSearchResults(data.offices);
+        const data = await response.json()
+        setOfficeSearchResults(data.offices)
       }
     } catch (error) {
-      console.error('Error searching customs offices:', error);
+      console.error('Error searching customs offices:', error)
     }
-  };
+  }
 
   const handleOpenModal = (route?: Route) => {
     if (route) {
-      setEditingRoute(route);
+      setEditingRoute(route)
       setFormData({
         name: route.name,
         description: route.description || '',
         countries: route.countries,
         transitOfficeIds: route.transitOffices.map((to) => to.customsOffice.id),
-      });
-      setSelectedOffices(route.transitOffices.map((to) => to.customsOffice));
+      })
+      setSelectedOffices(route.transitOffices.map((to) => to.customsOffice))
     } else {
-      setEditingRoute(null);
+      setEditingRoute(null)
       setFormData({
         name: '',
         description: '',
         countries: [],
         transitOfficeIds: [],
-      });
-      setSelectedOffices([]);
+      })
+      setSelectedOffices([])
     }
-    setShowModal(true);
-    setCountryInput('');
-    setOfficeSearch('');
-    setOfficeSearchResults([]);
-  };
+    setShowModal(true)
+    setCountryInput('')
+    setOfficeSearch('')
+    setOfficeSearchResults([])
+  }
 
   const handleCloseModal = () => {
-    setShowModal(false);
-    setEditingRoute(null);
+    setShowModal(false)
+    setEditingRoute(null)
     setFormData({
       name: '',
       description: '',
       countries: [],
       transitOfficeIds: [],
-    });
-    setSelectedOffices([]);
-    setCountryInput('');
-    setOfficeSearch('');
-    setOfficeSearchResults([]);
-  };
+    })
+    setSelectedOffices([])
+    setCountryInput('')
+    setOfficeSearch('')
+    setOfficeSearchResults([])
+  }
 
   const handleAddCountry = () => {
-    const country = countryInput.trim().toUpperCase();
+    const country = countryInput.trim().toUpperCase()
     if (country && country.length === 2 && !formData.countries.includes(country)) {
       setFormData({
         ...formData,
         countries: [...formData.countries, country],
-      });
-      setCountryInput('');
+      })
+      setCountryInput('')
     }
-  };
+  }
 
   const handleRemoveCountry = (country: string) => {
     setFormData({
       ...formData,
       countries: formData.countries.filter((c) => c !== country),
-    });
-  };
+    })
+  }
 
   const handleAddOffice = (office: CustomsOffice) => {
     if (!selectedOffices.find((o) => o.id === office.id)) {
-      setSelectedOffices([...selectedOffices, office]);
+      setSelectedOffices([...selectedOffices, office])
       setFormData({
         ...formData,
         transitOfficeIds: [...formData.transitOfficeIds, office.id],
-      });
+      })
     }
-    setOfficeSearch('');
-    setOfficeSearchResults([]);
-  };
+    setOfficeSearch('')
+    setOfficeSearchResults([])
+  }
 
   const handleRemoveOffice = (officeId: string) => {
-    setSelectedOffices(selectedOffices.filter((o) => o.id !== officeId));
+    setSelectedOffices(selectedOffices.filter((o) => o.id !== officeId))
     setFormData({
       ...formData,
       transitOfficeIds: formData.transitOfficeIds.filter((id) => id !== officeId),
-    });
-  };
+    })
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
 
     if (!formData.name.trim()) {
-      alert('Bitte geben Sie einen Namen ein');
-      return;
+      alert('Bitte geben Sie einen Namen ein')
+      return
     }
 
     if (formData.countries.length === 0) {
-      alert('Bitte fügen Sie mindestens ein Land hinzu');
-      return;
+      alert('Bitte fügen Sie mindestens ein Land hinzu')
+      return
     }
 
-    setLoading(true);
+    setLoading(true)
 
     try {
-      const url = editingRoute ? `/api/routes/${editingRoute.id}` : '/api/routes';
-      const method = editingRoute ? 'PUT' : 'POST';
+      const url = editingRoute ? `/api/routes/${editingRoute.id}` : '/api/routes'
+      const method = editingRoute ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
@@ -280,42 +341,42 @@ export default function RouteList({
         },
         credentials: 'include',
         body: JSON.stringify(formData),
-      });
+      })
 
       if (response.ok) {
-        await fetchRoutes();
-        handleCloseModal();
+        await fetchRoutes()
+        handleCloseModal()
       } else {
-        const data = await response.json();
-        alert(data.error || 'Fehler beim Speichern');
+        const data = await response.json()
+        alert(data.error || 'Fehler beim Speichern')
       }
     } catch (error) {
-      console.error('Error saving route:', error);
-      alert('Fehler beim Speichern');
+      console.error('Error saving route:', error)
+      alert('Fehler beim Speichern')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleDelete = async (routeId: string) => {
-    if (!confirm('Möchten Sie diese Route wirklich löschen?')) return;
+    if (!confirm('Möchten Sie diese Route wirklich löschen?')) return
 
     try {
       const response = await fetch(`/api/routes/${routeId}`, {
         method: 'DELETE',
         credentials: 'include',
-      });
+      })
 
       if (response.ok) {
-        await fetchRoutes();
+        await fetchRoutes()
       } else {
-        alert('Fehler beim Löschen');
+        alert('Fehler beim Löschen')
       }
     } catch (error) {
-      console.error('Error deleting route:', error);
-      alert('Fehler beim Löschen');
+      console.error('Error deleting route:', error)
+      alert('Fehler beim Löschen')
     }
-  };
+  }
 
   return (
     <>
@@ -339,7 +400,12 @@ export default function RouteList({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
           </div>
 
@@ -355,7 +421,12 @@ export default function RouteList({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white whitespace-nowrap"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
               Neue Route
             </button>
@@ -395,8 +466,8 @@ export default function RouteList({
               </thead>
               <tbody className="bg-white">
                 {filteredRoutes.map((route, index) => (
-                  <tr 
-                    key={route.id} 
+                  <tr
+                    key={route.id}
                     className={`${index !== filteredRoutes.length - 1 ? 'border-b border-[#e6e6e6]' : ''} hover:bg-[#f9f9f9] transition-colors`}
                   >
                     <td className="px-3 py-2">
@@ -466,9 +537,7 @@ export default function RouteList({
               <form onSubmit={handleSubmit} className="space-y-3">
                 {/* Name */}
                 <div>
-                  <label className="block font-semibold text-sm mb-1 text-[#525252]">
-                    Name *
-                  </label>
+                  <label className="block font-semibold text-sm mb-1 text-[#525252]">Name *</label>
                   <input
                     type="text"
                     value={formData.name}
@@ -505,8 +574,8 @@ export default function RouteList({
                       onChange={(e) => setCountryInput(e.target.value.toUpperCase())}
                       onKeyPress={(e) => {
                         if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddCountry();
+                          e.preventDefault()
+                          handleAddCountry()
                         }
                       }}
                       className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
@@ -550,8 +619,8 @@ export default function RouteList({
                       type="text"
                       value={officeSearch}
                       onChange={(e) => {
-                        setOfficeSearch(e.target.value);
-                        searchCustomsOffices(e.target.value);
+                        setOfficeSearch(e.target.value)
+                        searchCustomsOffices(e.target.value)
                       }}
                       className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
                       placeholder="Zollstelle suchen (Code oder Name)..."
@@ -587,9 +656,7 @@ export default function RouteList({
                         className="flex items-center justify-between p-2 bg-[#f9f9f9] rounded-sm border border-[#e6e6e6]"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-medium text-gray-500">
-                            {index + 1}.
-                          </span>
+                          <span className="text-sm font-medium text-gray-500">{index + 1}.</span>
                           <div>
                             <div className="font-medium text-sm text-[#525252]">
                               {office.code} - {transliterate(office.name)}
@@ -626,7 +693,7 @@ export default function RouteList({
                     className="inline-flex items-center px-3 py-1.5 text-sm rounded border border-[#0076bc] text-[#0076bc] bg-transparent transition-all hover:bg-[#0076bc] hover:text-white"
                     disabled={loading}
                   >
-                    {loading ? 'Speichert...' : (editingRoute ? 'Speichern' : 'Erstellen')}
+                    {loading ? 'Speichert...' : editingRoute ? 'Speichern' : 'Erstellen'}
                   </button>
                 </div>
               </form>
@@ -635,5 +702,5 @@ export default function RouteList({
         </div>
       )}
     </>
-  );
+  )
 }

@@ -1,28 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
-import { jwtVerify } from 'jose';
-import { generateNextAnmNr } from '@/lib/anmnr';
+import { NextRequest, NextResponse } from 'next/server'
+import { pool } from '@/lib/db'
+import { jwtVerify } from 'jose'
+import { generateNextAnmNr } from '@/lib/anmnr'
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
 
 async function getUserFromToken(request: NextRequest) {
   try {
-    const token = request.cookies.get('auth-token')?.value;
-    if (!token) return null;
-    const { payload } = await jwtVerify(token, SECRET);
-    return payload as { id: string; tenantId: string; role: string; firstName: string; lastName: string };
+    const token = request.cookies.get('auth-token')?.value
+    if (!token) return null
+    const { payload } = await jwtVerify(token, SECRET)
+    return payload as {
+      id: string
+      tenantId: string
+      role: string
+      firstName: string
+      lastName: string
+    }
   } catch (error) {
-    return null;
+    return null
   }
 }
 
 // GET - Alle Clearances abrufen (mit AnmNr!)
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(request);
-    
+    const user = await getUserFromToken(request)
+
     if (!user) {
-      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
     }
 
     // Query mit JOINs für Relations - JETZT MIT anmNr!
@@ -62,10 +68,10 @@ export async function GET(request: NextRequest) {
       WHERE c."tenantId" = $1
       ORDER BY c."anmNr" DESC`,
       [user.tenantId]
-    );
+    )
 
     // Transform für Frontend
-    const clearances = result.rows.map(row => ({
+    const clearances = result.rows.map((row) => ({
       id: row.id,
       anmNr: row.anmNr,
       lrn: row.lrn,
@@ -83,37 +89,38 @@ export async function GET(request: NextRequest) {
         id: row.guaranteeId,
         name: row.guaranteeName,
       },
-      route: row.routeId ? {
-        id: row.routeId,
-        name: row.routeName,
-      } : null,
+      route: row.routeId
+        ? {
+            id: row.routeId,
+            name: row.routeName,
+          }
+        : null,
       createdBy: {
         firstName: row.createdByFirstName,
         lastName: row.createdByLastName,
       },
-    }));
+    }))
 
     return NextResponse.json({
       clearances,
-      count: clearances.length
-    });
-
+      count: clearances.length,
+    })
   } catch (error) {
-    console.error('❌ Fehler beim Abrufen der Abfertigungen:', error);
-    return NextResponse.json({ error: 'Fehler beim Abrufen der Abfertigungen' }, { status: 500 });
+    console.error('❌ Fehler beim Abrufen der Abfertigungen:', error)
+    return NextResponse.json({ error: 'Fehler beim Abrufen der Abfertigungen' }, { status: 500 })
   }
 }
 
 // POST - Neue Clearance anlegen (mit automatischer AnmNr-Generierung!)
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(request);
-    
+    const user = await getUserFromToken(request)
+
     if (!user) {
-      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
+      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 })
     }
 
-    const body = await request.json();
+    const body = await request.json()
     const {
       lrn,
       companyId,
@@ -127,32 +134,29 @@ export async function POST(request: NextRequest) {
       simplifiedProcedure,
       goodsLocationId,
       authorizationId,
-      departureOfficeId,    // ✅ NEU
-      dispatchOfficeId,     // ✅ NEU
-      destinationOfficeId,  // ✅ NEU
+      departureOfficeId, // ✅ NEU
+      dispatchOfficeId, // ✅ NEU
+      destinationOfficeId, // ✅ NEU
       registrationDate,
       arrivalDate,
-    } = body;
+    } = body
 
     // Validierung
     if (!lrn || !companyId || !guaranteeId || !licensePlate || !licensePlateCountry) {
       return NextResponse.json(
         { error: 'LRN, Firma, Bürgschaft und Kennzeichen sind Pflichtfelder' },
         { status: 400 }
-      );
+      )
     }
 
     // Prüfe ob LRN bereits existiert
     const existingLRN = await pool.query(
       'SELECT id FROM "Clearance" WHERE "tenantId" = $1 AND lrn = $2',
       [user.tenantId, lrn]
-    );
+    )
 
     if (existingLRN.rows.length > 0) {
-      return NextResponse.json(
-        { error: 'Diese LRN existiert bereits' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Diese LRN existiert bereits' }, { status: 400 })
     }
 
     // Vereinfachtes Verfahren Validierung
@@ -160,13 +164,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Bei vereinfachtem Verfahren sind Warenort und Bewilligung Pflichtfelder' },
         { status: 400 }
-      );
+      )
     }
 
     // ✅ NEU: Generiere Anmeldenummer!
-    const anmNr = await generateNextAnmNr();
-    
-    console.log(`🎯 Neue Clearance: AnmNr ${anmNr}, LRN ${lrn}`);
+    const anmNr = await generateNextAnmNr()
+
+    console.log(`🎯 Neue Clearance: AnmNr ${anmNr}, LRN ${lrn}`)
 
     // ✅ NEU: Clearance anlegen - MIT anmNr UND ZOLLSTELLEN!
     const result = await pool.query(
@@ -220,14 +224,14 @@ export async function POST(request: NextRequest) {
         simplifiedProcedure || false,
         goodsLocationId || null,
         authorizationId || null,
-        departureOfficeId || null,    // ✅ NEU
-        dispatchOfficeId || null,     // ✅ NEU
-        destinationOfficeId || null,  // ✅ NEU
+        departureOfficeId || null, // ✅ NEU
+        dispatchOfficeId || null, // ✅ NEU
+        destinationOfficeId || null, // ✅ NEU
         registrationDate || new Date(),
         arrivalDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // +14 Tage
         user.id, // createdById
       ]
-    );
+    )
 
     // History eintragen
     await pool.query(
@@ -246,22 +250,20 @@ export async function POST(request: NextRequest) {
         $3,
         NOW()
       )`,
-      [
-        result.rows[0].id,
-        `Abfertigung erstellt: AnmNr ${anmNr}, LRN ${lrn}`,
-        user.id,
-      ]
-    );
+      [result.rows[0].id, `Abfertigung erstellt: AnmNr ${anmNr}, LRN ${lrn}`, user.id]
+    )
 
-    console.log('✅ Clearance angelegt:', result.rows[0].anmNr);
+    console.log('✅ Clearance angelegt:', result.rows[0].anmNr)
 
-    return NextResponse.json({
-      message: 'Abfertigung erfolgreich angelegt',
-      clearance: result.rows[0]
-    }, { status: 201 });
-
+    return NextResponse.json(
+      {
+        message: 'Abfertigung erfolgreich angelegt',
+        clearance: result.rows[0],
+      },
+      { status: 201 }
+    )
   } catch (error) {
-    console.error('❌ Fehler beim Anlegen der Abfertigung:', error);
-    return NextResponse.json({ error: 'Fehler beim Anlegen der Abfertigung' }, { status: 500 });
+    console.error('❌ Fehler beim Anlegen der Abfertigung:', error)
+    return NextResponse.json({ error: 'Fehler beim Anlegen der Abfertigung' }, { status: 500 })
   }
 }

@@ -1,19 +1,19 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
+import React, { useState } from 'react'
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+    e.preventDefault()
+    setError('')
+    setLoading(true)
 
-    console.log('Login-Versuch:', { username });
+    console.log('Login-Versuch:', { username })
 
     try {
       const response = await fetch('/api/login', {
@@ -23,25 +23,24 @@ export default function LoginPage() {
         },
         credentials: 'include',
         body: JSON.stringify({ username, password }),
-      });
+      })
 
-      const data = await response.json();
-      console.log('Login-Response:', data);
+      const data = await response.json()
+      console.log('Login-Response:', data)
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login fehlgeschlagen');
+        throw new Error(data.error || 'Login fehlgeschlagen')
       }
 
-      console.log('✅ Login erfolgreich, redirect zu /dashboard');
-      window.location.href = '/dashboard';
-
+      console.log('✅ Login erfolgreich, redirect zu /dashboard')
+      window.location.href = '/dashboard'
     } catch (err: any) {
-      console.error('Login-Fehler:', err);
-      setError(err.message);
+      console.error('Login-Fehler:', err)
+      setError(err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
@@ -65,9 +64,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Benutzername
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Benutzername</label>
             <input
               type="text"
               required
@@ -80,9 +77,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Passwort
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Passwort</label>
             <input
               type="password"
               required
@@ -106,12 +101,21 @@ export default function LoginPage() {
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-xs font-semibold text-yellow-800 mb-2">💡 Test-Accounts:</p>
           <div className="text-xs text-yellow-700 space-y-1">
-            <p>Admin: <code className="bg-yellow-100 px-1 rounded">admin</code> / <code className="bg-yellow-100 px-1 rounded">admin123</code></p>
-            <p>Schichtleiter: <code className="bg-yellow-100 px-1 rounded">schichtleiter</code> / <code className="bg-yellow-100 px-1 rounded">schicht123</code></p>
-            <p>Mitarbeiter: <code className="bg-yellow-100 px-1 rounded">sercan</code> / <code className="bg-yellow-100 px-1 rounded">sercan123</code></p>
+            <p>
+              Admin: <code className="bg-yellow-100 px-1 rounded">admin</code> /{' '}
+              <code className="bg-yellow-100 px-1 rounded">admin123</code>
+            </p>
+            <p>
+              Schichtleiter: <code className="bg-yellow-100 px-1 rounded">schichtleiter</code> /{' '}
+              <code className="bg-yellow-100 px-1 rounded">schicht123</code>
+            </p>
+            <p>
+              Mitarbeiter: <code className="bg-yellow-100 px-1 rounded">sercan</code> /{' '}
+              <code className="bg-yellow-100 px-1 rounded">sercan123</code>
+            </p>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 }

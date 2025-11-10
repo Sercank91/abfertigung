@@ -4,10 +4,9 @@ import { pool } from '@/lib/db'
 
 async function getTenantBySubdomain(subdomain: string) {
   try {
-    const result = await pool.query(
-      `SELECT id, name, domain FROM "Tenant" WHERE domain = $1`,
-      [subdomain]
-    )
+    const result = await pool.query(`SELECT id, name, domain FROM "Tenant" WHERE domain = $1`, [
+      subdomain,
+    ])
     return result.rows[0] || null
   } catch (error) {
     console.error('Tenant lookup error:', error)
@@ -18,8 +17,8 @@ async function getTenantBySubdomain(subdomain: string) {
 // Firmenlogos basierend auf Subdomain
 function getCompanyLogo(subdomain: string) {
   const logos: { [key: string]: string } = {
-    'verag': 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg',
-    'dsv': 'https://dsv-media-premium.azureedge.net/~/media/corporate/global/logo/dsv-logo-small.svg?iar=0&rev=391728928e824eef9247d3d041620943'
+    verag: 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg',
+    dsv: 'https://dsv-media-premium.azureedge.net/~/media/corporate/global/logo/dsv-logo-small.svg?iar=0&rev=391728928e824eef9247d3d041620943',
   }
   return logos[subdomain] || null
 }
@@ -29,20 +28,23 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
   return (
     <>
       {/* Header - Dunkelgrau wie TeloWeb mit fester Höhe */}
-      <header 
-        style={{ 
+      <header
+        style={{
           backgroundColor: '#393939',
           height: '55px',
           minHeight: '56px',
-          maxHeight: '56px'
-        }} 
+          maxHeight: '56px',
+        }}
         className="w-full px-8 shadow-md flex items-center"
       >
         <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
       </header>
 
       {/* Subheader mit Firmennamen OHNE Logo */}
-      <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
+      <div
+        style={{ backgroundColor: '#f2f2f2' }}
+        className="w-full py-4 px-8 border-b border-gray-300"
+      >
         <div className="flex items-end gap-3">
           <h2 className="text-gray-800 text-xl font-normal leading-none">
             Anmelden - {tenantName}
@@ -54,13 +56,16 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-12" style={{ backgroundColor: '#ffffff' }}>
+      <div
+        className="flex-1 flex items-center justify-center px-4 py-12"
+        style={{ backgroundColor: '#ffffff' }}
+      >
         <div className="w-full max-w-md">
           {/* Firmenlogo - Groß und zentriert über dem Login-Formular */}
           {logoUrl && (
             <div className="flex justify-center mb-8">
-              <img 
-                src={logoUrl} 
+              <img
+                src={logoUrl}
                 alt={tenantName}
                 className="object-contain"
                 style={{ maxHeight: '80px', maxWidth: '250px' }}
@@ -109,7 +114,10 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
             </div>
 
             {/* Allgemeiner Error */}
-            <div id="generalError" className="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded text-sm"></div>
+            <div
+              id="generalError"
+              className="hidden bg-red-50 border border-red-300 text-red-700 px-4 py-3 rounded text-sm"
+            ></div>
 
             {/* Submit Button mit CSS Gradient */}
             <button
@@ -123,19 +131,19 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
       </div>
 
       {/* Footer - Wie TeloWeb */}
-      <footer 
-        style={{ 
+      <footer
+        style={{
           backgroundColor: '#f2f2f2',
-          borderTop: '1px solid #c6c6c6'
-        }} 
+          borderTop: '1px solid #c6c6c6',
+        }}
         className="w-full py-4 px-8 text-right"
       >
-        <p className="text-gray-600 text-xs">
-          1.0.5v © 2025 MAS Project für Speditionen
-        </p>
+        <p className="text-gray-600 text-xs">1.0.5v © 2025 MAS Project für Speditionen</p>
       </footer>
 
-      <style dangerouslySetInnerHTML={{__html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         /* Button Gradient Styles */
         .login-button {
           background-image: linear-gradient(#0090e5, #0076bc 60%, #0069a8);
@@ -168,9 +176,13 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
           border-color: #0076bc;
           box-shadow: 0 0 0 2px rgba(0, 118, 188, 0.1);
         }
-      `}} />
+      `,
+        }}
+      />
 
-      <script dangerouslySetInnerHTML={{__html: `
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
         // Warte bis DOM geladen ist
         document.addEventListener('DOMContentLoaded', function() {
           const form = document.getElementById('loginForm');
@@ -277,9 +289,11 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
             }
           });
         });
-      `}} />
+      `,
+        }}
+      />
     </>
-  );
+  )
 }
 
 export default async function Home() {
@@ -298,39 +312,37 @@ export default async function Home() {
   }
 
   // Subdomain aus Header holen
-  const headersList = await import('next/headers').then(m => m.headers())
+  const headersList = await import('next/headers').then((m) => m.headers())
   const hostname = headersList.get('host') || ''
   const subdomain = hostname.split('.')[0].replace(':3000', '')
-  
+
   // Prüfe ob es eine Subdomain ist (nicht localhost oder www)
   const isSubdomain = hostname.includes('.') && subdomain !== 'localhost' && subdomain !== 'www'
-  
+
   if (isSubdomain) {
     // Prüfe ob Tenant existiert
     const tenant = await getTenantBySubdomain(subdomain)
-    
+
     if (!tenant) {
       // Tenant existiert nicht!
       return (
         <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
-          <header 
-            style={{ 
+          <header
+            style={{
               backgroundColor: '#393939',
               height: '55px',
               minHeight: '56px',
-              maxHeight: '56px'
-            }} 
+              maxHeight: '56px',
+            }}
             className="w-full px-8 shadow-md flex items-center"
           >
             <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
           </header>
-          
+
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
               <div className="text-6xl mb-4">❌</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Firma nicht gefunden
-              </h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Firma nicht gefunden</h2>
               <p className="text-gray-600 mb-4">
                 Die Subdomain <strong>{subdomain}</strong> ist nicht registriert.
               </p>
@@ -340,16 +352,14 @@ export default async function Home() {
             </div>
           </div>
 
-          <footer 
-            style={{ 
+          <footer
+            style={{
               backgroundColor: '#f2f2f2',
-              borderTop: '1px solid #c6c6c6'
-            }} 
+              borderTop: '1px solid #c6c6c6',
+            }}
             className="w-full py-4 px-8 text-right"
           >
-            <p className="text-gray-600 text-xs">
-              1.0.5v © 2025 MAS Project für Speditionen
-            </p>
+            <p className="text-gray-600 text-xs">1.0.5v © 2025 MAS Project für Speditionen</p>
           </footer>
         </div>
       )
@@ -369,19 +379,22 @@ export default async function Home() {
   // Hauptdomain (localhost:3000) - Landing Page
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
-      <header 
-        style={{ 
+      <header
+        style={{
           backgroundColor: '#393939',
           height: '55px',
           minHeight: '56px',
-          maxHeight: '56px'
-        }} 
+          maxHeight: '56px',
+        }}
         className="w-full px-8 shadow-md flex items-center"
       >
         <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
       </header>
 
-      <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
+      <div
+        style={{ backgroundColor: '#f2f2f2' }}
+        className="w-full py-4 px-8 border-b border-gray-300"
+      >
         <div className="flex items-end gap-3">
           <h2 className="text-gray-800 text-xl font-normal leading-none">
             MAS Project für Speditionen
@@ -400,27 +413,21 @@ export default async function Home() {
               Bitte verwenden Sie die Subdomain Ihrer Firma:
             </p>
             <div className="space-y-2">
-              <p className="text-blue-600 font-mono text-sm">
-                verag.localhost:3000
-              </p>
-              <p className="text-blue-600 font-mono text-sm">
-                dsv.localhost:3000
-              </p>
+              <p className="text-blue-600 font-mono text-sm">verag.localhost:3000</p>
+              <p className="text-blue-600 font-mono text-sm">dsv.localhost:3000</p>
             </div>
           </div>
         </div>
       </div>
 
-      <footer 
-        style={{ 
+      <footer
+        style={{
           backgroundColor: '#f2f2f2',
-          borderTop: '1px solid #c6c6c6'
-        }} 
+          borderTop: '1px solid #c6c6c6',
+        }}
         className="w-full py-4 px-8 text-right"
       >
-        <p className="text-gray-600 text-xs">
-          1.0.5v © 2025 MAS Project für Speditionen
-        </p>
+        <p className="text-gray-600 text-xs">1.0.5v © 2025 MAS Project für Speditionen</p>
       </footer>
     </div>
   )

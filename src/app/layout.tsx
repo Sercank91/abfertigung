@@ -7,16 +7,10 @@ export const metadata: Metadata = {
   description: 'Österreichischer Abfertigungsrechner',
 }
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
-      <body>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   )
 }

@@ -7,7 +7,7 @@ const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secr
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || ''
   const subdomain = hostname.split('.')[0]
-  
+
   console.log('🌐 Hostname:', hostname)
   console.log('🏢 Subdomain:', subdomain)
 
@@ -54,7 +54,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }

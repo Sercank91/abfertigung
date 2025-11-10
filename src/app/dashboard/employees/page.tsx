@@ -1,60 +1,60 @@
-'use client';
+'use client'
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 interface Employee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  startDate: string;
-  endDate: string | null;
-  monthlyGross: number;
-  createdAt: string;
-  updatedAt: string;
+  id: string
+  firstName: string
+  lastName: string
+  startDate: string
+  endDate: string | null
+  monthlyGross: number
+  createdAt: string
+  updatedAt: string
 }
 
 export default function EmployeesPage() {
-  const router = useRouter();
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const router = useRouter()
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     startDate: '',
     endDate: '',
-    monthlyGross: ''
-  });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+    monthlyGross: '',
+  })
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    fetchEmployees()
+  }, [])
 
   const fetchEmployees = async () => {
     try {
-      const response = await fetch('/api/employees');
-      
+      const response = await fetch('/api/employees')
+
       if (!response.ok) {
         if (response.status === 401) {
-          router.push('/login');
-          return;
+          router.push('/login')
+          return
         }
-        throw new Error('Fehler beim Laden der Mitarbeiter');
+        throw new Error('Fehler beim Laden der Mitarbeiter')
       }
 
-      const data = await response.json();
-      setEmployees(data.employees);
+      const data = await response.json()
+      setEmployees(data.employees)
     } catch (err) {
-      setError('Fehler beim Laden der Mitarbeiter');
-      console.error(err);
+      setError('Fehler beim Laden der Mitarbeiter')
+      console.error(err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const resetForm = () => {
     setFormData({
@@ -62,12 +62,12 @@ export default function EmployeesPage() {
       lastName: '',
       startDate: '',
       endDate: '',
-      monthlyGross: ''
-    });
-    setEditingEmployee(null);
-    setShowForm(false);
-    setError('');
-  };
+      monthlyGross: '',
+    })
+    setEditingEmployee(null)
+    setShowForm(false)
+    setError('')
+  }
 
   const handleEdit = (employee: Employee) => {
     setFormData({
@@ -75,25 +75,23 @@ export default function EmployeesPage() {
       lastName: employee.lastName,
       startDate: employee.startDate ? employee.startDate.split('T')[0] : '',
       endDate: employee.endDate ? employee.endDate.split('T')[0] : '',
-      monthlyGross: employee.monthlyGross.toString()
-    });
-    setEditingEmployee(employee);
-    setShowForm(true);
-    setError('');
-    setSuccess('');
-  };
+      monthlyGross: employee.monthlyGross.toString(),
+    })
+    setEditingEmployee(employee)
+    setShowForm(true)
+    setError('')
+    setSuccess('')
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+    e.preventDefault()
+    setError('')
+    setSuccess('')
 
     try {
-      const url = editingEmployee
-        ? `/api/employees/${editingEmployee.id}`
-        : '/api/employees';
-      
-      const method = editingEmployee ? 'PUT' : 'POST';
+      const url = editingEmployee ? `/api/employees/${editingEmployee.id}` : '/api/employees'
+
+      const method = editingEmployee ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,
@@ -101,51 +99,49 @@ export default function EmployeesPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Fehler beim Speichern');
+        throw new Error(data.error || 'Fehler beim Speichern')
       }
 
       setSuccess(
         editingEmployee
           ? 'Mitarbeiter erfolgreich aktualisiert'
           : 'Mitarbeiter erfolgreich angelegt'
-      );
-      
-      resetForm();
-      fetchEmployees();
+      )
 
+      resetForm()
+      fetchEmployees()
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message)
     }
-  };
+  }
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Möchten Sie ${name} wirklich löschen?`)) {
-      return;
+      return
     }
 
     try {
       const response = await fetch(`/api/employees/${id}`, {
         method: 'DELETE',
-      });
+      })
 
-      const data = await response.json();
+      const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Fehler beim Löschen');
+        throw new Error(data.error || 'Fehler beim Löschen')
       }
 
-      setSuccess(data.message);
-      fetchEmployees();
-
+      setSuccess(data.message)
+      fetchEmployees()
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message)
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -155,7 +151,7 @@ export default function EmployeesPage() {
           <p className="mt-4 text-gray-600">Lade Mitarbeiter...</p>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -165,17 +161,13 @@ export default function EmployeesPage() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Mitarbeiter-Verwaltung
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {employees.length} Mitarbeiter gesamt
-              </p>
+              <h1 className="text-3xl font-bold text-gray-900">Mitarbeiter-Verwaltung</h1>
+              <p className="text-gray-600 mt-1">{employees.length} Mitarbeiter gesamt</p>
             </div>
             <button
               onClick={() => {
-                resetForm();
-                setShowForm(true);
+                resetForm()
+                setShowForm(true)
               }}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
             >
@@ -344,7 +336,7 @@ export default function EmployeesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {new Intl.NumberFormat('de-DE', {
                         style: 'currency',
-                        currency: 'EUR'
+                        currency: 'EUR',
                       }).format(employee.monthlyGross)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -356,10 +348,7 @@ export default function EmployeesPage() {
                       </button>
                       <button
                         onClick={() =>
-                          handleDelete(
-                            employee.id,
-                            `${employee.firstName} ${employee.lastName}`
-                          )
+                          handleDelete(employee.id, `${employee.firstName} ${employee.lastName}`)
                         }
                         className="text-red-600 hover:text-red-900"
                       >
@@ -374,5 +363,5 @@ export default function EmployeesPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

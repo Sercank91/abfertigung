@@ -9,7 +9,7 @@ import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
 if (!process.env.JWT_SECRET) {
-  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
+  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!')
 }
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
 
@@ -23,7 +23,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
   // ✅ Input-Validierung mit Zod
   const body = await request.json()
   const { username, password } = validateData(LoginSchema, body)
-    
+
   const hostname = request.headers.get('host') || ''
   const subdomain = hostname.split('.')[0].replace(':3000', '')
 
@@ -31,10 +31,9 @@ export const POST = handleApiError(async (request: NextRequest) => {
   logger.auth.loginAttempt(username, subdomain)
 
   // 1. Tenant finden
-  const tenantResult = await pool.query(
-    `SELECT id, name, domain FROM "Tenant" WHERE domain = $1`,
-    [subdomain]
-  )
+  const tenantResult = await pool.query(`SELECT id, name, domain FROM "Tenant" WHERE domain = $1`, [
+    subdomain,
+  ])
 
   if (tenantResult.rows.length === 0) {
     logger.auth.loginFailed(username, 'Tenant nicht gefunden')
@@ -84,7 +83,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
     lastName: user.lastName,
     tenantId: user.tenantId,
     tenantName: user.tenantName,
-    role: user.role
+    role: user.role,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setExpirationTime('24h')
@@ -95,7 +94,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 60 * 60 * 24 // 24 Stunden
+    maxAge: 60 * 60 * 24, // 24 Stunden
   })
 
   // ✅ Strukturiertes Success-Logging
@@ -111,7 +110,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
       lastName: user.lastName,
       tenantId: user.tenantId,
       tenantName: user.tenantName,
-      role: user.role
-    }
+      role: user.role,
+    },
   })
 })

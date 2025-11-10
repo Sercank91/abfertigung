@@ -1,17 +1,15 @@
-import { jwtVerify, SignJWT } from 'jose';
+import { jwtVerify, SignJWT } from 'jose'
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret'
-);
+const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
 
 export interface TokenPayload {
-  userId: string;
-  username: string;
-  tenantId: string;
-  tenantName: string;
-  role: string;
-  firstName: string;
-  lastName: string;
+  userId: string
+  username: string
+  tenantId: string
+  tenantName: string
+  role: string
+  firstName: string
+  lastName: string
 }
 
 /**
@@ -19,11 +17,11 @@ export interface TokenPayload {
  */
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET);
-    return payload as TokenPayload;
+    const { payload } = await jwtVerify(token, SECRET)
+    return payload as TokenPayload
   } catch (error) {
-    console.error('Token verification failed:', error);
-    return null;
+    console.error('Token verification failed:', error)
+    return null
   }
 }
 
@@ -35,7 +33,7 @@ export async function createToken(payload: TokenPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(SECRET);
+    .sign(SECRET)
 
-  return token;
+  return token
 }
