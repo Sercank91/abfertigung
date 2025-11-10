@@ -98,7 +98,10 @@ export default function LicensePlateInput({
         <div className="flex items-center gap-4">
           <label className="w-48 text-sm font-medium text-gray-700">2. Kennzeichen</label>
           <div className="flex-1 flex gap-2">
-            <div className="w-[90px]"></div> {/* Spacer für Alignment mit Typ-Dropdown */}
+            {/* Spacer für Alignment mit Typ-Dropdown (gleiche Breite wie Typ-Select) */}
+            <select disabled className="px-3 py-2 border border-gray-300 rounded opacity-0 pointer-events-none">
+              <option>Typ</option>
+            </select>
 
             {/* Zweites Kennzeichen */}
             <input
@@ -119,7 +122,10 @@ export default function LicensePlateInput({
               placeholder="DE"
             />
 
-            <div className="w-[100px]"></div> {/* Spacer für Alignment mit Toggle-Button */}
+            {/* Spacer für Alignment mit Toggle-Button (gleiche Breite wie Button) */}
+            <button disabled className="px-4 py-2 rounded opacity-0 pointer-events-none">
+              + 2. KZ
+            </button>
           </div>
         </div>
       )}

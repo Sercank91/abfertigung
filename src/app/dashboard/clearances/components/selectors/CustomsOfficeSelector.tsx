@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { transliterate } from '@/lib/transliterate';
+import { getCountryName } from '@/lib/utils/countries';
 
 /**
  * CustomsOfficeSelector Component
@@ -182,7 +183,7 @@ export default function CustomsOfficeSelector({
                   value={selectedCountry || ''}
                   onChange={(e) => onCountryChange?.(e.target.value)}
                   className="w-40 px-3 py-2 border border-gray-300 rounded text-sm"
-                  placeholder="Land"
+                  placeholder="Deutschland"
                 />
                 <input
                   type="text"

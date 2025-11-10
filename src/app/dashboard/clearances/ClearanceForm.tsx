@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { showSuccess, showError, showWarning } from '@/lib/utils/toast';
-import { formatAnmNr } from '@/lib/utils';
+import { formatAnmNr, getCountryName } from '@/lib/utils';
 
 // Import all our new components
 import CompanySelector from './components/selectors/CompanySelector';
@@ -316,7 +316,7 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
       dispatchOfficeId: office.id,
       dispatchOffice: office.code,
       dispatchOfficeName: office.name,
-      dispatchOfficeCountry: office.countryCode,
+      dispatchOfficeCountry: getCountryName(office.countryCode), // Voller Ländername
       dispatchOfficeCountryCode: office.countryCode,
     });
   };
@@ -338,7 +338,7 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
       destinationOfficeId: office.id,
       destinationOffice: office.code,
       destinationOfficeName: office.name,
-      destinationOfficeCountry: office.countryCode,
+      destinationOfficeCountry: getCountryName(office.countryCode), // Voller Ländername
       destinationOfficeCountryCode: office.countryCode,
     });
   };
@@ -642,7 +642,7 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               selectedId={formData.departureOfficeId}
               onSelect={handleDepartureOfficeSelect}
               onClear={handleDepartureOfficeClear}
-              labelWidth="w-32"
+              labelWidth="w-48"
             />
 
             <CustomsOfficeSelector
@@ -670,7 +670,7 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               onClear={handleDestinationOfficeClear}
               onCountryChange={(country) => setFormData({ ...formData, destinationOfficeCountry: country })}
               onCountryCodeChange={(code) => setFormData({ ...formData, destinationOfficeCountryCode: code })}
-              labelWidth="w-32"
+              labelWidth="w-48"
             />
 
             {/* Route */}
