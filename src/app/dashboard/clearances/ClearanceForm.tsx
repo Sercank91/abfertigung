@@ -3,6 +3,7 @@
 import { transliterate } from '@/lib/transliterate';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { showSuccess, showError, showWarning, showLoading, updateToast } from '@/lib/utils/toast';
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {
@@ -263,7 +264,7 @@ export default function ClearanceForm({
     } catch (err: any) {
       console.error('Fehler beim Laden:', err);
       setErrors([err.message || 'Fehler beim Laden der Abfertigung']);
-      alert('❌ Fehler beim Laden der Abfertigung');
+      showError('Fehler beim Laden der Clearance');
     } finally {
       setLoading(false);
     }
@@ -544,16 +545,16 @@ export default function ClearanceForm({
     setErrors(newErrors);
     if (newErrors.length === 0) {
       setAnmeldungValidated(true);
-      alert('✅ Prüfung erfolgreich! Sie können jetzt speichern.');
+      showSuccess('Prüfung erfolgreich! Sie können jetzt speichern.');
     } else {
       setAnmeldungValidated(false);
-      alert('❌ Bitte alle Pflichtfelder ausfüllen!');
+      showError('Bitte alle Pflichtfelder ausfüllen!');
     }
   };
 
   const handleSpeichern = async () => {
     if (!anmeldungValidated) {
-      alert('Bitte zuerst prüfen!');
+      showWarning('Bitte zuerst prüfen!');
       return;
     }
 
@@ -639,7 +640,7 @@ export default function ClearanceForm({
         ? '✅ Änderungen erfolgreich gespeichert!' 
         : '✅ Anmeldung erfolgreich gespeichert!';
       
-      alert(successMessage);
+      showSuccess(successMessage);
       
     // ✅ NEU:
     if (isEditMode) {
@@ -652,7 +653,7 @@ export default function ClearanceForm({
     } catch (err: any) {
       console.error('Fehler beim Speichern:', err);
       setErrors([err.message || 'Unbekannter Fehler beim Speichern']);
-      alert(`❌ Fehler: ${err.message}`);
+      showError(`Fehler: ${err.message}`);
     } finally {
       setLoading(false);
     }
