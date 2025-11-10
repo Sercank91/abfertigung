@@ -642,7 +642,6 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               selectedId={formData.departureOfficeId}
               onSelect={handleDepartureOfficeSelect}
               onClear={handleDepartureOfficeClear}
-              customsOffices={customsOffices}
               labelWidth="w-32"
             />
 
@@ -651,32 +650,13 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               selectedCode={formData.dispatchOffice}
               selectedName={formData.dispatchOfficeName}
               selectedCountry={formData.dispatchOfficeCountry}
+              selectedCountryCode={formData.dispatchOfficeCountryCode}
               selectedId={formData.dispatchOfficeId}
               onSelect={handleDispatchOfficeSelect}
               onClear={handleDispatchOfficeClear}
-              customsOffices={customsOffices}
-              additionalFields={
-                formData.dispatchOffice && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-4">
-                      <label className="w-32 text-sm font-medium text-gray-700">Land</label>
-                      <input
-                        type="text"
-                        value={formData.dispatchOfficeCountryCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            dispatchOfficeCountryCode: e.target.value.toUpperCase(),
-                          })
-                        }
-                        maxLength={2}
-                        className="w-20 px-3 py-2 border border-gray-300 rounded"
-                        placeholder="AT"
-                      />
-                    </div>
-                  </div>
-                )
-              }
+              onCountryChange={(country) => setFormData({ ...formData, dispatchOfficeCountry: country })}
+              onCountryCodeChange={(code) => setFormData({ ...formData, dispatchOfficeCountryCode: code })}
+              labelWidth="w-48"
             />
 
             <CustomsOfficeSelector
@@ -684,33 +664,13 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               selectedCode={formData.destinationOffice}
               selectedName={formData.destinationOfficeName}
               selectedCountry={formData.destinationOfficeCountry}
+              selectedCountryCode={formData.destinationOfficeCountryCode}
               selectedId={formData.destinationOfficeId}
               onSelect={handleDestinationOfficeSelect}
               onClear={handleDestinationOfficeClear}
-              customsOffices={customsOffices}
+              onCountryChange={(country) => setFormData({ ...formData, destinationOfficeCountry: country })}
+              onCountryCodeChange={(code) => setFormData({ ...formData, destinationOfficeCountryCode: code })}
               labelWidth="w-32"
-              additionalFields={
-                formData.destinationOffice && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-4">
-                      <label className="w-32 text-sm font-medium text-gray-700">Land</label>
-                      <input
-                        type="text"
-                        value={formData.destinationOfficeCountryCode}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            destinationOfficeCountryCode: e.target.value.toUpperCase(),
-                          })
-                        }
-                        maxLength={2}
-                        className="w-20 px-3 py-2 border border-gray-300 rounded"
-                        placeholder="DE"
-                      />
-                    </div>
-                  </div>
-                )
-              }
             />
 
             {/* Route */}
@@ -723,7 +683,6 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
               onCountriesChange={handleCountriesChange}
               onTransitOfficesChange={handleTransitOfficesChange}
               availableRoutes={routes}
-              customsOffices={customsOffices}
             />
 
             {/* Simplified Procedure */}

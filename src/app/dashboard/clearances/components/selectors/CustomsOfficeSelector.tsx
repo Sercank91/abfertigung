@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { transliterate } from '@/lib/transliterate';
 
 /**
@@ -8,6 +8,8 @@ import { transliterate } from '@/lib/transliterate';
  *
  * Wiederverwendbare Komponente für die Auswahl einer Zollstelle
  * Wird 3x verwendet: Grenzzollstelle, Versandzollstelle, Ankunftszollstelle
+ *
+ * Implementiert API-basierte Suche mit Debouncing
  */
 
 interface CustomsOffice {
@@ -29,6 +31,7 @@ interface CustomsOfficeSelectorProps {
   selectedCode?: string;
   selectedName?: string;
   selectedCountry?: string;
+  selectedCountryCode?: string;
   selectedId?: string;
 
   // Callback wenn eine Zollstelle ausgewählt wird
@@ -37,14 +40,22 @@ interface CustomsOfficeSelectorProps {
   // Callback zum Löschen der Auswahl
   onClear: () => void;
 
-  // Liste aller verfügbaren Zollstellen
-  customsOffices: CustomsOffice[];
-
-  // Zusätzliche Felder für Dispatch/Destination
-  additionalFields?: React.ReactNode;
+  // Callbacks für Land/Länderkürzel Änderungen (nur dispatch/destination)
+  onCountryChange?: (country: string) => void;
+  onCountryCodeChange?: (countryCode: string) => void;
 
   // Optional: Breite des Labels
   labelWidth?: string;
+}
+
+// Simple debounce hook
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
 }
 
 // Konfiguration für jeden Typ
@@ -80,30 +91,47 @@ export default function CustomsOfficeSelector({
   selectedCode,
   selectedName,
   selectedCountry,
+  selectedCountryCode,
   selectedId,
   onSelect,
   onClear,
-  customsOffices,
-  additionalFields,
-  labelWidth = 'w-48',
+  onCountryChange,
+  onCountryCodeChange,
+  labelWidth = 'w-32',
 }: CustomsOfficeSelectorProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [offices, setOffices] = useState<CustomsOffice[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const config = typeConfig[type];
+  const debouncedSearch = useDebounce(searchTerm, 300);
 
-  // Gefilterte Zollstellen basierend auf Suchbegriff
-  const filteredOffices = useMemo(() => {
-    if (searchTerm.length < 2) return [];
+  // API-basierte Suche mit Debouncing
+  useEffect(() => {
+    if (debouncedSearch.length < 2) {
+      setOffices([]);
+      return;
+    }
 
-    const search = searchTerm.toLowerCase();
-    return customsOffices.filter(
-      (office) =>
-        office.code.toLowerCase().includes(search) ||
-        office.name.toLowerCase().includes(search) ||
-        office.countryCode.toLowerCase().includes(search)
-    );
-  }, [customsOffices, searchTerm]);
+    const loadOffices = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `/api/customs-offices?search=${encodeURIComponent(debouncedSearch)}&limit=50`
+        );
+        const data = await response.json();
+        setOffices(data.offices || []);
+      } catch (error) {
+        console.error('Fehler beim Laden der Zollstellen:', error);
+        setOffices([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOffices();
+  }, [debouncedSearch]);
 
   const handleSelect = (office: CustomsOffice) => {
     onSelect(office);
@@ -116,88 +144,110 @@ export default function CustomsOfficeSelector({
     setSearchTerm('');
   };
 
+  // Zeige Extra-Felder nur für dispatch und destination
+  const showExtraFields = (type === 'dispatch' || type === 'destination') && selectedCode;
+
   return (
-    <div className="space-y-2">
-      {/* Main Selector */}
-      <div className="flex items-center gap-4">
-        <label className={`${labelWidth} text-sm font-medium text-gray-700`}>
-          {config.label}*
-        </label>
-        <div className="flex-1 relative">
-          {selectedCode ? (
-            // Selected Office Display
-            <div
-              className={`flex items-center gap-2 px-3 py-2 border border-gray-300 rounded ${config.bgColor}`}
-            >
-              <span className="flex-1 font-mono text-sm">
-                {selectedCode} - {transliterate(selectedName || '')}
-              </span>
-              <button
-                type="button"
-                onClick={handleClear}
-                className={`${config.textColor} ${config.hoverTextColor} font-bold text-xl`}
-                aria-label="Löschen"
+    <div className="flex items-center gap-4">
+      <label className={`${labelWidth} text-sm font-medium text-gray-700`}>
+        {config.label}*
+      </label>
+      <div className="flex-1 flex gap-2">
+        {selectedCode ? (
+          // Selected Office Display with Extra Fields
+          <>
+            <div className="flex-1 relative">
+              <div
+                className={`flex items-center gap-2 px-3 py-2 border border-gray-300 rounded ${config.bgColor}`}
               >
-                ×
-              </button>
+                <span className="flex-1 font-mono text-sm">
+                  {selectedCode} - {transliterate(selectedName || '')}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  className="text-red-600 hover:text-red-800 font-bold text-xl"
+                  aria-label="Löschen"
+                >
+                  ×
+                </button>
+              </div>
             </div>
-          ) : (
-            // Search Input with Dropdown
-            <>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setShowDropdown(true);
-                }}
-                onFocus={() => setShowDropdown(true)}
-                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                placeholder="Mindestens 2 Zeichen..."
-              />
 
-              {/* Autocomplete Dropdown */}
-              {showDropdown && searchTerm.length >= 2 && filteredOffices.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto">
-                  {filteredOffices.map((office) => (
-                    <div
-                      key={office.id}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        handleSelect(office);
-                      }}
-                      className={`px-4 py-3 ${config.hoverColor} cursor-pointer border-b last:border-b-0 transition-colors`}
-                    >
-                      <div className="font-medium">
-                        {office.code} - {transliterate(office.name)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {office.countryCode}
-                        {office.city && ` • ${office.city}`}
-                      </div>
+            {/* Extra Fields für Dispatch und Destination */}
+            {showExtraFields && (
+              <>
+                <input
+                  type="text"
+                  value={selectedCountry || ''}
+                  onChange={(e) => onCountryChange?.(e.target.value)}
+                  className="w-40 px-3 py-2 border border-gray-300 rounded text-sm"
+                  placeholder="Land"
+                />
+                <input
+                  type="text"
+                  maxLength={2}
+                  value={selectedCountryCode || ''}
+                  onChange={(e) => onCountryCodeChange?.(e.target.value.toUpperCase())}
+                  className="w-16 px-3 py-2 border border-gray-300 rounded text-sm"
+                  placeholder="DE"
+                />
+              </>
+            )}
+          </>
+        ) : (
+          // Search Input with Dropdown
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+              placeholder="Mindestens 2 Zeichen..."
+            />
+
+            {/* Loading Indicator */}
+            {loading && searchTerm.length >= 2 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg p-4">
+                <p className="text-sm text-gray-500 text-center">Suche...</p>
+              </div>
+            )}
+
+            {/* Autocomplete Dropdown */}
+            {showDropdown && !loading && searchTerm.length >= 2 && offices.length > 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-60 overflow-y-auto">
+                {offices.map((office) => (
+                  <div
+                    key={office.id}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(office);
+                    }}
+                    className={`px-4 py-3 ${config.hoverColor} cursor-pointer border-b last:border-b-0 transition-colors`}
+                  >
+                    <div className="font-medium">
+                      {office.code} - {transliterate(office.name)}
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="text-xs text-gray-500">{office.countryCode}</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-              {/* No results message */}
-              {showDropdown && searchTerm.length >= 2 && filteredOffices.length === 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg p-4">
-                  <p className="text-sm text-gray-500 text-center">Keine Zollstellen gefunden</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            {/* No results message */}
+            {showDropdown && !loading && searchTerm.length >= 2 && offices.length === 0 && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg p-4">
+                <p className="text-sm text-gray-500 text-center">Keine Zollstellen gefunden</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Additional Fields (für Dispatch und Destination) */}
-      {additionalFields && selectedCode && (
-        <div className="pl-4 ml-48 border-l-2 border-gray-200">
-          {additionalFields}
-        </div>
-      )}
     </div>
   );
 }

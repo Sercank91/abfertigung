@@ -21,7 +21,7 @@ export default function WorkflowSidebar({ errors, savedItems }: WorkflowSidebarP
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
-      <h3 className="text-lg font-bold mb-4 text-gray-900">Workflow-Status</h3>
+      <h3 className="text-lg font-bold mb-4 text-gray-900">Arbeitsablauf</h3>
 
       {/* Validation Errors */}
       {errors.length > 0 && (

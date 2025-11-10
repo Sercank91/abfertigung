@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { transliterate } from '@/lib/transliterate';
 
 /**
@@ -9,7 +9,7 @@ import { transliterate } from '@/lib/transliterate';
  * Komplexe Komponente für Route-Konfiguration mit:
  * - Auswahl gespeicherter Routen
  * - Custom Route Countries (Drag & Drop)
- * - Transit Offices (Drag & Drop + Suche)
+ * - Transit Offices (Drag & Drop + Suche mit API)
  */
 
 interface Route {
@@ -47,7 +47,16 @@ interface RouteSelectorProps {
 
   // Daten
   availableRoutes: Route[];
-  customsOffices: CustomsOffice[];
+}
+
+// Simple debounce hook
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
 }
 
 export default function RouteSelector({
@@ -59,23 +68,42 @@ export default function RouteSelector({
   onCountriesChange,
   onTransitOfficesChange,
   availableRoutes,
-  customsOffices,
 }: RouteSelectorProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCountry, setNewCountry] = useState('');
   const [transitSearch, setTransitSearch] = useState('');
   const [draggedCountryIndex, setDraggedCountryIndex] = useState<number | null>(null);
   const [draggedTransitIndex, setDraggedTransitIndex] = useState<number | null>(null);
+  const [transitOfficesResults, setTransitOfficesResults] = useState<CustomsOffice[]>([]);
+  const [loadingTransit, setLoadingTransit] = useState(false);
 
-  // Gefilterte Transit Offices basierend auf Suchbegriff
-  const filteredTransitOffices =
-    transitSearch.length >= 2
-      ? customsOffices.filter(
-          (office) =>
-            office.code.toLowerCase().includes(transitSearch.toLowerCase()) ||
-            office.name.toLowerCase().includes(transitSearch.toLowerCase())
-        )
-      : [];
+  const debouncedTransitSearch = useDebounce(transitSearch, 300);
+
+  // API-basierte Transit-Offices Suche
+  useEffect(() => {
+    if (debouncedTransitSearch.length < 2) {
+      setTransitOfficesResults([]);
+      return;
+    }
+
+    const loadOffices = async () => {
+      setLoadingTransit(true);
+      try {
+        const response = await fetch(
+          `/api/customs-offices?search=${encodeURIComponent(debouncedTransitSearch)}&limit=50`
+        );
+        const data = await response.json();
+        setTransitOfficesResults(data.offices || []);
+      } catch (error) {
+        console.error('Fehler beim Laden der Transit-Offices:', error);
+        setTransitOfficesResults([]);
+      } finally {
+        setLoadingTransit(false);
+      }
+    };
+
+    loadOffices();
+  }, [debouncedTransitSearch]);
 
   // Route Selection Handler
   const handleRouteSelect = (route: Route) => {
@@ -306,11 +334,18 @@ export default function RouteSelector({
                       className="flex-1 px-3 py-1 border rounded text-sm focus:ring-2 focus:ring-blue-500"
                       placeholder="Mindestens 2 Zeichen..."
                     />
-                    {transitSearch.length >= 2 && filteredTransitOffices.length > 0 && (
+                    {/* Loading Indicator */}
+                    {loadingTransit && transitSearch.length >= 2 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-lg p-4 z-10">
+                        <p className="text-sm text-gray-500 text-center">Suche...</p>
+                      </div>
+                    )}
+                    {/* Results Dropdown */}
+                    {!loadingTransit && transitSearch.length >= 2 && transitOfficesResults.length > 0 && (
                       <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-lg max-h-60 overflow-y-auto z-10">
-                        {filteredTransitOffices.map((office) => (
+                        {transitOfficesResults.map((office) => (
                           <div
-                            key={office.code}
+                            key={office.id}
                             onMouseDown={(e) => {
                               e.preventDefault();
                               addTransitOffice(office);
@@ -323,6 +358,12 @@ export default function RouteSelector({
                             <div className="text-xs text-gray-500">{office.countryCode}</div>
                           </div>
                         ))}
+                      </div>
+                    )}
+                    {/* No results */}
+                    {!loadingTransit && transitSearch.length >= 2 && transitOfficesResults.length === 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded shadow-lg p-4 z-10">
+                        <p className="text-sm text-gray-500 text-center">Keine Zollstellen gefunden</p>
                       </div>
                     )}
                   </div>
