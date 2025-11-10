@@ -102,18 +102,21 @@ model CompanyGuarantee {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model CustomsOffice {
-  id                  String               @id @default(uuid())
-  code                String               @unique
-  name                String
-  countryCode         String
-  city                String?
-  address             String?
-  isActive            Boolean              @default(true)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  searchText          String?
-  declarations        Declaration[]
-  routeTransitOffices RouteTransitOffice[]
+  id                      String               @id @default(uuid())
+  code                    String               @unique
+  name                    String
+  countryCode             String
+  city                    String?
+  address                 String?
+  isActive                Boolean              @default(true)
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+  searchText              String?
+  declarations            Declaration[]
+  routeTransitOffices     RouteTransitOffice[]
+  clearancesDeparture     Clearance[]          @relation("ClearanceDepartureOffice")
+  clearancesDispatch      Clearance[]          @relation("ClearanceDispatchOffice")
+  clearancesDestination   Clearance[]          @relation("ClearanceDestinationOffice")
 
   @@index([countryCode])
   @@index([code])
@@ -198,6 +201,9 @@ model Clearance {
   simplifiedProcedure Boolean            @default(false)
   goodsLocationId     String?
   authorizationId     String?
+  departureOfficeId   String?
+  dispatchOfficeId    String?
+  destinationOfficeId String?
   registrationDate    DateTime           @default(now())
   arrivalDate         DateTime
   status              String             @default("in_bearbeitung")
@@ -215,6 +221,9 @@ model Clearance {
   route               Route?             @relation(fields: [routeId], references: [id])
   tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   updatedBy           User?              @relation("ClearanceUpdatedBy", fields: [updatedById], references: [id])
+  departureOffice     CustomsOffice?     @relation("ClearanceDepartureOffice", fields: [departureOfficeId], references: [id])
+  dispatchOffice      CustomsOffice?     @relation("ClearanceDispatchOffice", fields: [dispatchOfficeId], references: [id])
+  destinationOffice   CustomsOffice?     @relation("ClearanceDestinationOffice", fields: [destinationOfficeId], references: [id])
   history             ClearanceHistory[]
   declarations        Declaration[]
 
@@ -225,6 +234,9 @@ model Clearance {
   @@index([tenantId, anmNr])
   @@index([tenantId, status])
   @@index([companyId])
+  @@index([departureOfficeId])
+  @@index([dispatchOfficeId])
+  @@index([destinationOfficeId])
 }
 
 model Declaration {

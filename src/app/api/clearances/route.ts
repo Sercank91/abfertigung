@@ -2,27 +2,64 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { generateNextAnmNr } from '@/lib/anmnr';
+import type { UserPayload, ApiResponse, ApiError } from '@/types';
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
-async function getUserFromToken(request: NextRequest) {
+/**
+ * Extrahiert und validiert den User aus dem JWT-Token
+ */
+async function getUserFromToken(request: NextRequest): Promise<UserPayload | null> {
   try {
     const token = request.cookies.get('auth-token')?.value;
     if (!token) return null;
+
     const { payload } = await jwtVerify(token, SECRET);
-    return payload as { id: string; tenantId: string; role: string; firstName: string; lastName: string };
+    return payload as UserPayload;
   } catch (error) {
+    console.error('JWT Verification Error:', error);
     return null;
   }
 }
 
-// GET - Alle Clearances abrufen (mit AnmNr!)
+/**
+ * Hilfsfunktion für konsistente Error-Responses
+ */
+function createErrorResponse(message: string, statusCode: number = 500): NextResponse<ApiError> {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+      statusCode,
+    },
+    { status: statusCode }
+  );
+}
+
+/**
+ * Hilfsfunktion für konsistente Success-Responses
+ */
+function createSuccessResponse<T>(data: T, message?: string, statusCode: number = 200): NextResponse<ApiResponse<T>> {
+  return NextResponse.json(
+    {
+      success: true,
+      data,
+      message,
+    },
+    { status: statusCode }
+  );
+}
+
+/**
+ * GET /api/clearances
+ * Ruft alle Clearances für den Tenant ab
+ */
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromToken(request);
-    
+
     if (!user) {
-      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
+      return createErrorResponse('Nicht authentifiziert', 401);
     }
 
     // Query mit JOINs für Relations - JETZT MIT anmNr!
@@ -93,24 +130,29 @@ export async function GET(request: NextRequest) {
       },
     }));
 
-    return NextResponse.json({
+    return createSuccessResponse({
       clearances,
-      count: clearances.length
+      count: clearances.length,
     });
-
   } catch (error) {
-    console.error('❌ Fehler beim Abrufen der Abfertigungen:', error);
-    return NextResponse.json({ error: 'Fehler beim Abrufen der Abfertigungen' }, { status: 500 });
+    console.error('❌ Fehler beim Abrufen der Clearances:', error);
+    return createErrorResponse(
+      'Fehler beim Abrufen der Clearances. Bitte versuchen Sie es später erneut.',
+      500
+    );
   }
 }
 
-// POST - Neue Clearance anlegen (mit automatischer AnmNr-Generierung!)
+/**
+ * POST /api/clearances
+ * Erstellt eine neue Clearance mit automatischer AnmNr-Generierung
+ */
 export async function POST(request: NextRequest) {
   try {
     const user = await getUserFromToken(request);
-    
+
     if (!user) {
-      return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
+      return createErrorResponse('Nicht authentifiziert', 401);
     }
 
     const body = await request.json();
@@ -127,18 +169,25 @@ export async function POST(request: NextRequest) {
       simplifiedProcedure,
       goodsLocationId,
       authorizationId,
-      departureOfficeId,    // ✅ NEU
-      dispatchOfficeId,     // ✅ NEU
-      destinationOfficeId,  // ✅ NEU
+      departureOfficeId,
+      dispatchOfficeId,
+      destinationOfficeId,
       registrationDate,
       arrivalDate,
     } = body;
 
-    // Validierung
-    if (!lrn || !companyId || !guaranteeId || !licensePlate || !licensePlateCountry) {
-      return NextResponse.json(
-        { error: 'LRN, Firma, Bürgschaft und Kennzeichen sind Pflichtfelder' },
-        { status: 400 }
+    // Pflichtfeld-Validierung
+    const missingFields: string[] = [];
+    if (!lrn) missingFields.push('LRN');
+    if (!companyId) missingFields.push('Firma');
+    if (!guaranteeId) missingFields.push('Bürgschaft');
+    if (!licensePlate) missingFields.push('Kennzeichen');
+    if (!licensePlateCountry) missingFields.push('Kennzeichen-Land');
+
+    if (missingFields.length > 0) {
+      return createErrorResponse(
+        `Folgende Pflichtfelder fehlen: ${missingFields.join(', ')}`,
+        400
       );
     }
 
@@ -149,17 +198,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (existingLRN.rows.length > 0) {
-      return NextResponse.json(
-        { error: 'Diese LRN existiert bereits' },
-        { status: 400 }
-      );
+      return createErrorResponse('Diese LRN existiert bereits', 400);
     }
 
     // Vereinfachtes Verfahren Validierung
     if (simplifiedProcedure && (!goodsLocationId || !authorizationId)) {
-      return NextResponse.json(
-        { error: 'Bei vereinfachtem Verfahren sind Warenort und Bewilligung Pflichtfelder' },
-        { status: 400 }
+      return createErrorResponse(
+        'Bei vereinfachtem Verfahren sind Warenort und Bewilligung Pflichtfelder',
+        400
       );
     }
 
@@ -255,13 +301,34 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Clearance angelegt:', result.rows[0].anmNr);
 
-    return NextResponse.json({
-      message: 'Abfertigung erfolgreich angelegt',
-      clearance: result.rows[0]
-    }, { status: 201 });
-
+    return createSuccessResponse(
+      { clearance: result.rows[0] },
+      'Clearance erfolgreich angelegt',
+      201
+    );
   } catch (error) {
-    console.error('❌ Fehler beim Anlegen der Abfertigung:', error);
-    return NextResponse.json({ error: 'Fehler beim Anlegen der Abfertigung' }, { status: 500 });
+    console.error('❌ Fehler beim Anlegen der Clearance:', error);
+
+    // Spezifische Fehlerbehandlung
+    if (error instanceof Error) {
+      if (error.message.includes('Konnte keine Anmeldenummer generieren')) {
+        return createErrorResponse(
+          'Fehler bei der AnmNr-Generierung. Bitte kontaktieren Sie den Support.',
+          500
+        );
+      }
+
+      if (error.message.includes('violates foreign key constraint')) {
+        return createErrorResponse(
+          'Ein oder mehrere referenzierte Datensätze existieren nicht.',
+          400
+        );
+      }
+    }
+
+    return createErrorResponse(
+      'Fehler beim Anlegen der Clearance. Bitte versuchen Sie es später erneut.',
+      500
+    );
   }
 }
