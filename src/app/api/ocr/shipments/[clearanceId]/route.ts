@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { pool } from '@/lib/db';
 
 /**
  * GET /api/ocr/shipments/[clearanceId]
@@ -14,68 +14,76 @@ export async function GET(
     const { clearanceId } = params;
 
     // Alle Shipments für diese Clearance laden
-    const shipments = await prisma.shipment.findMany({
-      where: { clearanceId },
-      include: {
-        positions: {
-          orderBy: {
-            orderNumber: 'asc',
+    const shipmentsResult = await pool.query(
+      `SELECT s.*,
+         d.id as "ocrDocId", d."fileName" as "ocrDocFileName",
+         d.status as "ocrDocStatus", d."processedAt" as "ocrDocProcessedAt"
+       FROM "Shipment" s
+       LEFT JOIN "OcrDocument" d ON d.id = s."ocrDocumentId"
+       WHERE s."clearanceId" = $1
+       ORDER BY s."createdAt" DESC`,
+      [clearanceId]
+    );
+
+    // Positionen für alle Shipments laden
+    const shipments = await Promise.all(
+      shipmentsResult.rows.map(async (shipment) => {
+        const positionsResult = await pool.query(
+          `SELECT * FROM "ShipmentPosition"
+           WHERE "shipmentId" = $1
+           ORDER BY "orderNumber" ASC`,
+          [shipment.id]
+        );
+
+        return {
+          id: shipment.id,
+          mrn: shipment.mrn,
+          documentType: shipment.documentType,
+          procedureType: shipment.procedureType,
+          commonSender: shipment.commonSender,
+          commonReceiver: shipment.commonReceiver,
+          commonOriginCountry: shipment.commonOriginCountry,
+          commonDestCountry: shipment.commonDestCountry,
+          totalPackages: shipment.totalPackages,
+          totalGrossWeight: shipment.totalGrossWeight,
+          totalNetWeight: shipment.totalNetWeight,
+          totalValue: shipment.totalValue,
+          currency: shipment.currency,
+          invoiceNumbers: shipment.invoiceNumbers,
+          verified: shipment.verified,
+          createdAt: shipment.createdAt,
+          updatedAt: shipment.updatedAt,
+          ocrDocument: {
+            id: shipment.ocrDocId,
+            fileName: shipment.ocrDocFileName,
+            status: shipment.ocrDocStatus,
+            processedAt: shipment.ocrDocProcessedAt,
           },
-        },
-        ocrDocument: {
-          select: {
-            id: true,
-            fileName: true,
-            status: true,
-            processedAt: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+          positionCount: positionsResult.rows.length,
+          positions: positionsResult.rows.map((pos) => ({
+            id: pos.id,
+            orderNumber: pos.orderNumber,
+            hsCode: pos.hsCode,
+            description: pos.description,
+            netWeight: pos.netWeight,
+            grossWeight: pos.grossWeight,
+            procedure: pos.procedure,
+            procedureType: pos.procedureType,
+            sender: pos.sender,
+            receiver: pos.receiver,
+            originCountry: pos.originCountry,
+            destinationCountry: pos.destinationCountry,
+            value: pos.value,
+            currency: pos.currency,
+            invoiceNumber: pos.invoiceNumber,
+          })),
+        };
+      })
+    );
 
     return NextResponse.json({
       clearanceId,
-      shipments: shipments.map((shipment) => ({
-        id: shipment.id,
-        mrn: shipment.mrn,
-        documentType: shipment.documentType,
-        procedureType: shipment.procedureType,
-        commonSender: shipment.commonSender,
-        commonReceiver: shipment.commonReceiver,
-        commonOriginCountry: shipment.commonOriginCountry,
-        commonDestCountry: shipment.commonDestCountry,
-        totalPackages: shipment.totalPackages,
-        totalGrossWeight: shipment.totalGrossWeight,
-        totalNetWeight: shipment.totalNetWeight,
-        totalValue: shipment.totalValue,
-        currency: shipment.currency,
-        invoiceNumbers: shipment.invoiceNumbers,
-        verified: shipment.verified,
-        createdAt: shipment.createdAt,
-        updatedAt: shipment.updatedAt,
-        ocrDocument: shipment.ocrDocument,
-        positionCount: shipment.positions.length,
-        positions: shipment.positions.map((pos) => ({
-          id: pos.id,
-          orderNumber: pos.orderNumber,
-          hsCode: pos.hsCode,
-          description: pos.description,
-          netWeight: pos.netWeight,
-          grossWeight: pos.grossWeight,
-          procedure: pos.procedure,
-          procedureType: pos.procedureType,
-          sender: pos.sender,
-          receiver: pos.receiver,
-          originCountry: pos.originCountry,
-          destinationCountry: pos.destinationCountry,
-          value: pos.value,
-          currency: pos.currency,
-          invoiceNumber: pos.invoiceNumber,
-        })),
-      })),
+      shipments,
     });
   } catch (error) {
     console.error('❌ Shipments-Abfrage Fehler:', error);

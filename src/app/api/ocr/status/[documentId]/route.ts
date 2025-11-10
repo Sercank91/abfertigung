@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { pool } from '@/lib/db';
 
 /**
  * GET /api/ocr/status/[documentId]
@@ -14,27 +14,69 @@ export async function GET(
     const { documentId } = params;
 
     // OcrDocument aus Datenbank laden
-    const ocrDocument = await prisma.ocrDocument.findUnique({
-      where: { id: documentId },
-      include: {
-        shipments: {
-          include: {
-            positions: {
-              orderBy: {
-                orderNumber: 'asc',
-              },
-            },
-          },
-        },
-      },
-    });
+    const docResult = await pool.query(
+      `SELECT * FROM "OcrDocument" WHERE id = $1`,
+      [documentId]
+    );
 
-    if (!ocrDocument) {
+    if (docResult.rows.length === 0) {
       return NextResponse.json(
         { error: 'Dokument nicht gefunden' },
         { status: 404 }
       );
     }
+
+    const ocrDocument = docResult.rows[0];
+
+    // Shipments laden
+    const shipmentsResult = await pool.query(
+      `SELECT * FROM "Shipment" WHERE "ocrDocumentId" = $1`,
+      [documentId]
+    );
+
+    // Positionen für alle Shipments laden
+    const shipments = await Promise.all(
+      shipmentsResult.rows.map(async (shipment) => {
+        const positionsResult = await pool.query(
+          `SELECT * FROM "ShipmentPosition"
+           WHERE "shipmentId" = $1
+           ORDER BY "orderNumber" ASC`,
+          [shipment.id]
+        );
+
+        return {
+          id: shipment.id,
+          mrn: shipment.mrn,
+          documentType: shipment.documentType,
+          procedureType: shipment.procedureType,
+          commonSender: shipment.commonSender,
+          commonReceiver: shipment.commonReceiver,
+          totalPackages: shipment.totalPackages,
+          totalGrossWeight: shipment.totalGrossWeight,
+          totalNetWeight: shipment.totalNetWeight,
+          totalValue: shipment.totalValue,
+          currency: shipment.currency,
+          invoiceNumbers: shipment.invoiceNumbers,
+          verified: shipment.verified,
+          positionCount: positionsResult.rows.length,
+          positions: positionsResult.rows.map((pos) => ({
+            id: pos.id,
+            orderNumber: pos.orderNumber,
+            hsCode: pos.hsCode,
+            description: pos.description,
+            netWeight: pos.netWeight,
+            grossWeight: pos.grossWeight,
+            procedure: pos.procedure,
+            procedureType: pos.procedureType,
+            sender: pos.sender,
+            receiver: pos.receiver,
+            value: pos.value,
+            currency: pos.currency,
+            invoiceNumber: pos.invoiceNumber,
+          })),
+        };
+      })
+    );
 
     return NextResponse.json({
       id: ocrDocument.id,
@@ -48,37 +90,7 @@ export async function GET(
       createdAt: ocrDocument.createdAt,
       updatedAt: ocrDocument.updatedAt,
       taskId: ocrDocument.ocrJobId,
-      shipments: ocrDocument.shipments.map((shipment) => ({
-        id: shipment.id,
-        mrn: shipment.mrn,
-        documentType: shipment.documentType,
-        procedureType: shipment.procedureType,
-        commonSender: shipment.commonSender,
-        commonReceiver: shipment.commonReceiver,
-        totalPackages: shipment.totalPackages,
-        totalGrossWeight: shipment.totalGrossWeight,
-        totalNetWeight: shipment.totalNetWeight,
-        totalValue: shipment.totalValue,
-        currency: shipment.currency,
-        invoiceNumbers: shipment.invoiceNumbers,
-        verified: shipment.verified,
-        positionCount: shipment.positions.length,
-        positions: shipment.positions.map((pos) => ({
-          id: pos.id,
-          orderNumber: pos.orderNumber,
-          hsCode: pos.hsCode,
-          description: pos.description,
-          netWeight: pos.netWeight,
-          grossWeight: pos.grossWeight,
-          procedure: pos.procedure,
-          procedureType: pos.procedureType,
-          sender: pos.sender,
-          receiver: pos.receiver,
-          value: pos.value,
-          currency: pos.currency,
-          invoiceNumber: pos.invoiceNumber,
-        })),
-      })),
+      shipments,
     });
   } catch (error) {
     console.error('❌ Status-Abfrage Fehler:', error);

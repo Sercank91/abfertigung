@@ -4,7 +4,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Redis from 'ioredis';
-import { prisma } from '@/lib/prisma';
+import { pool } from '@/lib/db';
 
 // Redis Client für Celery
 const redis = new Redis({
@@ -147,37 +147,47 @@ export async function POST(request: NextRequest) {
     console.log(`✅ Datei gespeichert: ${filePath}`);
 
     // OcrDocument in Datenbank erstellen
-    const ocrDocument = await prisma.ocrDocument.create({
-      data: {
-        clearanceId,
-        fileName: file.name,
-        fileSize: file.size,
-        fileType: file.type,
-        filePath,
-        status: 'pending',
-        progress: 0,
-      },
-    });
+    const docId = uuidv4();
+    const now = new Date();
 
-    console.log(`✅ OcrDocument erstellt: ${ocrDocument.id}`);
+    await pool.query(
+      `INSERT INTO "OcrDocument" (
+        id, "clearanceId", "fileName", "fileSize", "fileType",
+        "filePath", status, progress, "createdAt", "updatedAt"
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        docId,
+        clearanceId,
+        file.name,
+        file.size,
+        file.type,
+        filePath,
+        'pending',
+        0,
+        now,
+        now,
+      ]
+    );
+
+    console.log(`✅ OcrDocument erstellt: ${docId}`);
 
     // Celery Task senden
     const taskId = await sendCeleryTask(
       'worker.process_ocr_document',
-      [ocrDocument.id, filePath, clearanceId]
+      [docId, filePath, clearanceId]
     );
 
     // Task-ID in Datenbank speichern
-    await prisma.ocrDocument.update({
-      where: { id: ocrDocument.id },
-      data: { ocrJobId: taskId },
-    });
+    await pool.query(
+      `UPDATE "OcrDocument" SET "ocrJobId" = $1, "updatedAt" = $2 WHERE id = $3`,
+      [taskId, new Date(), docId]
+    );
 
     console.log(`✅ Celery Task gesendet: ${taskId}`);
 
     return NextResponse.json({
       success: true,
-      documentId: ocrDocument.id,
+      documentId: docId,
       taskId,
       message: 'Datei hochgeladen. OCR-Verarbeitung gestartet.',
     });

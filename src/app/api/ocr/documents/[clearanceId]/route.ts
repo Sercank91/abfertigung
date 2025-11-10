@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { pool } from '@/lib/db';
 
 /**
  * GET /api/ocr/documents/[clearanceId]
@@ -14,53 +14,45 @@ export async function GET(
     const { clearanceId } = params;
 
     // Alle OCR-Dokumente für diese Clearance laden
-    const documents = await prisma.ocrDocument.findMany({
-      where: { clearanceId },
-      include: {
-        shipments: {
-          select: {
-            id: true,
-            mrn: true,
-            documentType: true,
-            procedureType: true,
-            verified: true,
-            _count: {
-              select: {
-                positions: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
+    const documentsResult = await pool.query(
+      `SELECT
+        d.id, d."fileName", d."fileSize", d."fileType", d.status,
+        d.progress, d."errorMessage", d."ocrJobId" as "taskId",
+        d."processedAt", d."createdAt", d."updatedAt"
+      FROM "OcrDocument" d
+      WHERE d."clearanceId" = $1
+      ORDER BY d."createdAt" DESC`,
+      [clearanceId]
+    );
+
+    // Für jedes Dokument die Shipments laden
+    const documents = await Promise.all(
+      documentsResult.rows.map(async (doc) => {
+        const shipmentsResult = await pool.query(
+          `SELECT
+            s.id, s.mrn, s."documentType", s."procedureType", s.verified,
+            COUNT(p.id) as "positionCount"
+          FROM "Shipment" s
+          LEFT JOIN "ShipmentPosition" p ON p."shipmentId" = s.id
+          WHERE s."ocrDocumentId" = $1
+          GROUP BY s.id`,
+          [doc.id]
+        );
+
+        return {
+          ...doc,
+          shipmentCount: shipmentsResult.rows.length,
+          shipments: shipmentsResult.rows.map((s) => ({
+            ...s,
+            positionCount: parseInt(s.positionCount, 10),
+          })),
+        };
+      })
+    );
 
     return NextResponse.json({
       clearanceId,
-      documents: documents.map((doc) => ({
-        id: doc.id,
-        fileName: doc.fileName,
-        fileSize: doc.fileSize,
-        fileType: doc.fileType,
-        status: doc.status,
-        progress: doc.progress,
-        errorMessage: doc.errorMessage,
-        taskId: doc.ocrJobId,
-        processedAt: doc.processedAt,
-        createdAt: doc.createdAt,
-        updatedAt: doc.updatedAt,
-        shipmentCount: doc.shipments.length,
-        shipments: doc.shipments.map((shipment) => ({
-          id: shipment.id,
-          mrn: shipment.mrn,
-          documentType: shipment.documentType,
-          procedureType: shipment.procedureType,
-          verified: shipment.verified,
-          positionCount: shipment._count.positions,
-        })),
-      })),
+      documents,
     });
   } catch (error) {
     console.error('❌ Dokumente-Abfrage Fehler:', error);
