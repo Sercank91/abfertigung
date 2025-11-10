@@ -238,13 +238,17 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
         dispatchOfficeId: data.dispatchOfficeId || '',
         dispatchOffice: data.dispatchOffice?.code || '',
         dispatchOfficeName: data.dispatchOffice?.name || '',
-        dispatchOfficeCountry: data.dispatchOffice?.countryCode || '',
+        dispatchOfficeCountry: data.dispatchOffice?.countryCode
+          ? getCountryName(data.dispatchOffice.countryCode)
+          : '',
         dispatchOfficeCountryCode: data.dispatchOffice?.countryCode || '',
 
         destinationOfficeId: data.destinationOfficeId || '',
         destinationOffice: data.destinationOffice?.code || '',
         destinationOfficeName: data.destinationOffice?.name || '',
-        destinationOfficeCountry: data.destinationOffice?.countryCode || '',
+        destinationOfficeCountry: data.destinationOffice?.countryCode
+          ? getCountryName(data.destinationOffice.countryCode)
+          : '',
         destinationOfficeCountryCode: data.destinationOffice?.countryCode || '',
 
         routeId: data.routeId || '',
