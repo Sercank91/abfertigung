@@ -264,3 +264,23 @@ export function sortByPriority<T extends { arrivalDate: Date | string; status: s
     return aDate - bDate;
   });
 }
+
+/**
+ * Validiert AnmNr Format
+ *
+ * @param anmNr - Anmeldenummer
+ * @returns true wenn gültig
+ *
+ * @example
+ * isValidAnmNr("25055") // → true
+ * isValidAnmNr("25.055") // → false (mit Punkt!)
+ * isValidAnmNr("2505") // → false (zu kurz)
+ * isValidAnmNr("abc12") // → false (keine Ziffern)
+ */
+export function isValidAnmNr(anmNr: string): boolean {
+  if (!anmNr) return false;
+
+  // Format: JJNNN (5 Zeichen, alle Ziffern)
+  const regex = /^\d{5}$/;
+  return regex.test(anmNr);
+}
