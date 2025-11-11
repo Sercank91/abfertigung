@@ -31,6 +31,7 @@ from extractors import (
 
 
 # PaddleOCR initialisieren (nur einmal beim Worker-Start)
+# WICHTIG: Cache wird zurückgesetzt, um Sprachänderung zu erzwingen
 ocr_engine = None
 
 
@@ -39,9 +40,10 @@ def get_ocr_engine():
     global ocr_engine
     if ocr_engine is None:
         # PaddleOCR 3.x - nur kompatible Parameter verwenden
+        # Verwende 'german' für deutsche Zolldokumente
         ocr_engine = PaddleOCR(
             use_angle_cls=True,
-            lang=PADDLE_LANG
+            lang='german'
         )
     return ocr_engine
 
