@@ -325,64 +325,60 @@ def extract_hs_codes_smart(text: str) -> List[str]:
 def extract_total_gross_weight_smart(text: str) -> Optional[float]:
     """
     Extrahiert Rohmasse (kg) - sucht nach "Rohmasse" Keyword
-    WICHTIG: Feldnummer (35) kann verwechselt werden!
-    Beispiel: "Rohmasse (kg) (35) 16,220" → Wir wollen 16,220, nicht 35!
 
-    STRATEGIE: Finde ALLE Vorkommen und wähle das korrekte (meist das größte Gewicht)
+    WICHTIG: Der Wert kann in der nächsten Zeile stehen!
+    Beispiel:
+        Rohmasse (kg) (35) BG00
+        | 4 der Grenze (25) 16,220    ← Hier steht der Wert!
+
+    STRATEGIE: Suche (35), dann in den nächsten 2-3 Zeilen nach Gewicht
     """
-    # Pattern 1: Suche nach "Rohmasse" mit (35) - findet ALLE Vorkommen
-    # Beispiel: "Rohmasse (kg) (35) 16,220"
-    pattern1 = r'Rohmasse[^\d]*\(35\)[^\d]*(\d+[.,]\d+)'
-    matches = re.finditer(pattern1, text, re.IGNORECASE)
+    # Pattern 1: Suche nach (35), dann innerhalb der nächsten 200 Zeichen nach Gewicht
+    # Das deckt mehrere Zeilen ab
+    pattern1 = r'\(35\)([^\n]*(?:\n[^\n]*){0,3})'
+    matches = re.finditer(pattern1, text)
 
     candidates = []
     for match in matches:
-        weight_str = match.group(1).replace(',', '.')
-        try:
-            weight = float(weight_str)
-            # Rohmasse ist normalerweise zwischen 0.01 und 50000 kg
-            if 0.01 <= weight <= 50000:
-                # Filter out obvious false positives (35 selbst, etc.)
-                if weight != 35.0 and weight != 6.0:
-                    candidates.append(weight)
-        except ValueError:
-            pass
+        block = match.group(1)
+        # Suche alle Zahlen mit Komma/Punkt in diesem Block
+        weight_pattern = r'(\d+[.,]\d{1,3})\b'
+        weight_matches = re.findall(weight_pattern, block)
 
-    # Wähle das größte Gewicht (Total ist meist größer als Einzelpositionen)
+        for weight_str in weight_matches:
+            weight_str_clean = weight_str.replace(',', '.')
+            try:
+                weight = float(weight_str_clean)
+                # Filter: Gewicht zwischen 0.01 und 50000, nicht 35 oder 6
+                if 0.01 <= weight <= 50000 and weight != 35.0 and weight != 6.0 and weight != 25.0:
+                    # Zusätzlich: Filtere offensichtlich falsche Werte wie 44.4 (das ist (44.4) Code)
+                    if weight != 44.4 and weight != 44.2:
+                        candidates.append(weight)
+            except ValueError:
+                pass
+
     if candidates:
+        # Wähle das größte Gewicht (Total ist meist größer)
         return max(candidates)
 
-    # Pattern 2: Fallback - suche "Rohmasse" ohne (35) - ALLE Vorkommen
-    pattern2 = r'Rohmasse[^\d]+(\d+[.,]\d+)'
+    # Pattern 2: Fallback - suche "Rohmasse" + (35) mit mehr Toleranz
+    pattern2 = r'Rohmasse[^\n]*\(35\)([^\n]*(?:\n[^\n]*){0,3})'
     matches = re.finditer(pattern2, text, re.IGNORECASE)
 
     candidates = []
     for match in matches:
-        weight_str = match.group(1).replace(',', '.')
-        try:
-            weight = float(weight_str)
-            if 0.01 <= weight <= 50000 and weight != 35.0:
-                candidates.append(weight)
-        except ValueError:
-            pass
+        block = match.group(1)
+        weight_pattern = r'(\d+[.,]\d{1,3})\b'
+        weight_matches = re.findall(weight_pattern, block)
 
-    if candidates:
-        return max(candidates)
-
-    # Pattern 3: Nur (35) verwenden wenn nichts anderes funktioniert
-    # Suche nach (35) gefolgt von Zahl mit Komma/Punkt
-    pattern3 = r'\(35\)[^\d]*(\d+[.,]\d+)'
-    matches = re.finditer(pattern3, text)
-
-    candidates = []
-    for match in matches:
-        weight_str = match.group(1).replace(',', '.')
-        try:
-            weight = float(weight_str)
-            if 0.01 <= weight <= 50000 and weight != 35.0:
-                candidates.append(weight)
-        except ValueError:
-            pass
+        for weight_str in weight_matches:
+            weight_str_clean = weight_str.replace(',', '.')
+            try:
+                weight = float(weight_str_clean)
+                if 0.01 <= weight <= 50000 and weight != 35.0 and weight != 44.4:
+                    candidates.append(weight)
+            except ValueError:
+                pass
 
     if candidates:
         return max(candidates)
@@ -518,82 +514,84 @@ def extract_total_packages(text: str) -> Optional[int]:
     """
     Extrahiert Packstücke insgesamt (6)
 
-    WICHTIG: Die Feldnummer (6) kann verwechselt werden!
-    Beispiel: "Packst. insgesamt (6) 1" → Wir wollen 1, nicht 6!
+    WICHTIG: Der Wert steht oft in einer Position-Zeile wie "1 CT, Karton"!
+    Beispiel: "| 1 | 1. 1 CT, Karton 2402037" → 1 Packstück
 
-    STRATEGIE: Finde ALLE Vorkommen und wähle die kleinste Zahl im Bereich 1-10
-    (Totale Packstückzahl ist meist klein, während Einzelpositionen größer sein können)
+    STRATEGIE:
+    1. Suche nach "X CT" oder "X Karton" Pattern
+    2. Falls nicht gefunden, suche in Zeilen nach (6)
     """
-    # Pattern 1: Suche nach "Packst" + "insgesamt" + (6) - ALLE Vorkommen
-    pattern1 = r'Packst[^\d]*insgesamt[^\d]*\(6\)[^\d]*(\d+)'
-    matches = re.finditer(pattern1, text, re.IGNORECASE)
+    # Pattern 1: Suche nach "X CT, Karton" oder "X CT" (typisch für Positionen)
+    # Beispiel: "1 CT, Karton" oder "2 CT"
+    pattern1 = r'\b(\d{1,2})\s+CT\b'
+    matches = re.findall(pattern1, text, re.IGNORECASE)
+
+    if matches:
+        # Wandle in Integers und nimm kleinsten Wert (meist der Gesamt)
+        candidates = []
+        for match in matches:
+            try:
+                num = int(match)
+                if 1 <= num <= 100:
+                    candidates.append(num)
+            except ValueError:
+                pass
+        if candidates:
+            return min(candidates)
+
+    # Pattern 2: Suche nach "X Karton" oder "X Kartons"
+    pattern2 = r'\b(\d{1,2})\s+Kartons?\b'
+    matches = re.findall(pattern2, text, re.IGNORECASE)
+
+    if matches:
+        candidates = []
+        for match in matches:
+            try:
+                num = int(match)
+                if 1 <= num <= 100:
+                    candidates.append(num)
+            except ValueError:
+                pass
+        if candidates:
+            return min(candidates)
+
+    # Pattern 3: Suche nach (6) und dann in den nächsten 2 Zeilen nach einer Zahl
+    pattern3 = r'\(6\)([^\n]*(?:\n[^\n]*){0,2})'
+    matches = re.finditer(pattern3, text)
 
     candidates = []
     for match in matches:
-        try:
-            num = int(match.group(1))
-            # Filter: Totale Packstückzahl ist meist 1-10, nicht 6 selbst
-            if 1 <= num <= 100 and num != 6:
-                candidates.append(num)
-        except ValueError:
-            pass
+        block = match.group(1)
+        # Suche nach kleinen Zahlen (1-10) im Block
+        num_pattern = r'\b([1-9]|10)\b'
+        num_matches = re.findall(num_pattern, block)
 
-    # Bevorzuge kleinste Zahl (Total ist meist kleiner als Summe)
+        for num_str in num_matches:
+            try:
+                num = int(num_str)
+                if num != 6:  # Nicht die Feldnummer selbst
+                    candidates.append(num)
+            except ValueError:
+                pass
+
     if candidates:
+        # Bevorzuge kleinste Zahl
         return min(candidates)
 
-    # Pattern 2: Suche nach "Packst" + (6) (ohne "insgesamt") - ALLE Vorkommen
-    pattern2 = r'Packst[^\d]*\(6\)[^\d]*(\d+)'
-    matches = re.finditer(pattern2, text, re.IGNORECASE)
+    # Pattern 4: Fallback - suche "Packst" in der Nähe von Zahlen
+    pattern4 = r'Packst[^\d]*(\d{1,2})'
+    matches = re.findall(pattern4, text, re.IGNORECASE)
 
     candidates = []
     for match in matches:
         try:
-            num = int(match.group(1))
+            num = int(match)
             if 1 <= num <= 100 and num != 6:
                 candidates.append(num)
         except ValueError:
             pass
 
     if candidates:
-        return min(candidates)
-
-    # Pattern 3: Fallback - suche "Packst" und dann Zahlen - ALLE Vorkommen
-    pattern3 = r'Packst[^\d]+(\d+)'
-    matches = re.finditer(pattern3, text, re.IGNORECASE)
-
-    candidates = []
-    for match in matches:
-        try:
-            num = int(match.group(1))
-            # Erweitere Bereich, aber filtere 6
-            if 1 <= num <= 100 and num != 6:
-                candidates.append(num)
-        except ValueError:
-            pass
-
-    if candidates:
-        # Bevorzuge Zahlen 1-10 (typische Totale)
-        small_candidates = [c for c in candidates if c <= 10]
-        if small_candidates:
-            return min(small_candidates)
-        return min(candidates)
-
-    # Pattern 4: Nur (6) - ALLE Vorkommen
-    pattern4 = r'\(6\)[^\d]*(\d+)'
-    matches = re.finditer(pattern4, text)
-
-    candidates = []
-    for match in matches:
-        try:
-            num = int(match.group(1))
-            if 1 <= num <= 100 and num != 6:
-                candidates.append(num)
-        except ValueError:
-            pass
-
-    if candidates:
-        # Bevorzuge kleine Zahlen
         small_candidates = [c for c in candidates if c <= 10]
         if small_candidates:
             return min(small_candidates)
