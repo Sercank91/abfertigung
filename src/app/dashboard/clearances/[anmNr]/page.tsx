@@ -129,6 +129,11 @@ export default async function EditClearancePage({
       const actualAnmNr = result.rows[0].anmNr;
       redirect(`/dashboard/clearances/${actualAnmNr}`);
     } catch (error) {
+      // Next.js redirect wirft einen speziellen Error - diesen durchlassen
+      if (error && typeof error === 'object' && 'digest' in error &&
+          typeof error.digest === 'string' && error.digest.includes('NEXT_REDIRECT')) {
+        throw error;
+      }
       console.error('Fehler beim Laden der Clearance:', error);
       redirect('/dashboard/clearances');
     }
