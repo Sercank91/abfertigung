@@ -501,10 +501,12 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 # Nimm längsten Match
                 position['description'] = max(fallback_matches, key=len)[:200].strip()
 
-        # 2. NETTOGEWICHT: Suche Pattern VOR "CT" oder am Zeilenanfang
-        # Pattern 1: "| | 9,3" oder "| 3 1.0 CT"
-        weight_pattern1 = r'\|\s*\|\s*(\d+[.,]\d+)'  # | | 9,3
-        weight_match1 = re.search(weight_pattern1, before_hs[-200:])
+        # 2. NETTOGEWICHT: Suche Pattern VOR UND NACH dem HS-Code
+        # Das Gewicht kann vor "CT" ODER nach dem HS-Code in einer eigenen Zeile stehen
+
+        # Pattern 1: VOR HS-Code - "X.Y CT"
+        weight_pattern1 = r'(\d+[.,]\d+)\s*CT'
+        weight_match1 = re.search(weight_pattern1, before_hs[-200:], re.IGNORECASE)
         if weight_match1:
             weight_str = weight_match1.group(1).replace(',', '.')
             try:
@@ -515,10 +517,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             except ValueError:
                 pass
 
-        # Pattern 2: "3 1.0 CT" - nimm die erste Zahl vor CT
+        # Pattern 2: NACH HS-Code - "| | | X,Y" (Eigenmasse in eigener Zeile)
         if position['netWeight'] == 0.0:
-            weight_pattern2 = r'\|\s*\d+\s*\|\s*\d+\.\s*(\d+[.,]\d+)\s*CT'
-            weight_match2 = re.search(weight_pattern2, before_hs[-200:], re.IGNORECASE)
+            weight_pattern2 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
+            weight_match2 = re.search(weight_pattern2, after_hs[:300])
             if weight_match2:
                 weight_str = weight_match2.group(1).replace(',', '.')
                 try:
@@ -529,10 +531,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
-        # Pattern 3: Suche einfach Zahl vor "CT"
+        # Pattern 3: NACH HS-Code - "| | X,Y" (Fallback)
         if position['netWeight'] == 0.0:
-            weight_pattern3 = r'(\d+[.,]\d+)\s*CT'
-            weight_match3 = re.search(weight_pattern3, before_hs[-150:], re.IGNORECASE)
+            weight_pattern3 = r'\|\s*\|\s*(\d+[.,]\d+)'
+            weight_match3 = re.search(weight_pattern3, after_hs[:200])
             if weight_match3:
                 weight_str = weight_match3.group(1).replace(',', '.')
                 try:
@@ -543,12 +545,18 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
-        # 3. VERFAHREN: Suche "| XXXX DE TR" NACH dem HS-Code
-        # Pattern: | 4-stelliger Code DE TR
-        procedure_pattern = r'\|\s*(\d{4})\s+[A-Z]{2}\s+[A-Z]{2}'
+        # 3. VERFAHREN: Suche "| XXX |DE TR" oder "| XXXX DE TR" NACH dem HS-Code
+        # Pattern: 3-4 stelliger Code, flexibel mit Pipes und Leerzeichen
+        # Beispiel: "| 100  |DE TR |" oder "| 1000 DE TR"
+        procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
         procedure_match = re.search(procedure_pattern, after_hs[:400])
         if procedure_match:
             proc_code = procedure_match.group(1)
+
+            # Wenn 3-stellig, expandiere zu 4-stellig (100 → 1000)
+            if len(proc_code) == 3:
+                proc_code = proc_code + '0'
+
             position['procedure'] = proc_code
 
             # Klassifiziere Typ
