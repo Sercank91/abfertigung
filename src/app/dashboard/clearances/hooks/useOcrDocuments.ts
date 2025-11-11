@@ -164,7 +164,7 @@ export function useOcrDocuments(clearanceId: string): UseOcrDocumentsReturn {
     try {
       setError(null);
 
-      const response = await fetch(`/api/ocr/documents/${documentId}`, {
+      const response = await fetch(`/api/ocr/document/${documentId}`, {
         method: 'DELETE',
       });
 

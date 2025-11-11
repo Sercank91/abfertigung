@@ -4,9 +4,9 @@ import { unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 
 /**
- * DELETE /api/ocr/documents/[documentId]
+ * DELETE /api/ocr/document/[documentId]
  *
- * Löscht ein OCR-Dokument und die zugehörige Datei
+ * Löscht ein einzelnes OCR-Dokument und die zugehörige Datei
  */
 export async function DELETE(
   request: NextRequest,
@@ -31,7 +31,10 @@ export async function DELETE(
     const filePath = docResult.rows[0].filePath;
 
     // Verknüpfte Shipments und Positionen löschen
-    await pool.query(`DELETE FROM "ShipmentPosition" WHERE "shipmentId" IN (SELECT id FROM "Shipment" WHERE "ocrDocumentId" = $1)`, [documentId]);
+    await pool.query(
+      `DELETE FROM "ShipmentPosition" WHERE "shipmentId" IN (SELECT id FROM "Shipment" WHERE "ocrDocumentId" = $1)`,
+      [documentId]
+    );
     await pool.query(`DELETE FROM "Shipment" WHERE "ocrDocumentId" = $1`, [documentId]);
 
     // OcrDocument löschen
