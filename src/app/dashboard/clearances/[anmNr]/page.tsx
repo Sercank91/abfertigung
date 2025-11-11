@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
+import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
 
 const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
@@ -109,11 +110,33 @@ export default async function EditClearancePage({
   params: { anmNr: string };  // ✅ NEU: anmNr statt lrn!
 }) {
   const user = await getUser();
-  
-  // ✅ NEU: Prüfe ob Clearance mit dieser AnmNr existiert
-  const anmNr = decodeURIComponent(params.anmNr);
+
+  let anmNr = decodeURIComponent(params.anmNr);
+
+  // ✅ Prüfe ob Parameter eine ID ist (nur Zahlen)
+  if (/^\d+$/.test(anmNr)) {
+    // Es ist eine ID - hole anmNr aus Datenbank und redirecte
+    try {
+      const result = await pool.query(
+        `SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2`,
+        [parseInt(anmNr), user.tenantId]
+      );
+
+      if (result.rows.length === 0) {
+        redirect('/dashboard/clearances');
+      }
+
+      const actualAnmNr = result.rows[0].anmNr;
+      redirect(`/dashboard/clearances/${actualAnmNr}`);
+    } catch (error) {
+      console.error('Fehler beim Laden der Clearance:', error);
+      redirect('/dashboard/clearances');
+    }
+  }
+
+  // ✅ Prüfe ob Clearance mit dieser AnmNr existiert
   const exists = await checkClearanceExists(anmNr, user.tenantId);
-  
+
   if (!exists) {
     redirect('/dashboard/clearances');
   }
