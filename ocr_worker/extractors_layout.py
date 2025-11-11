@@ -120,21 +120,31 @@ class LayoutBasedExtractor:
             'destinationCountry': None
         }
 
-        # MRN: Suche in ALLEN Blöcken UND allen Wörtern
+        # MRN: Suche in ALLEN Blöcken UND einzelnen Wörtern
         # MRN ist oft rechts oben, kann außerhalb großer Blöcke sein
-        all_text = ' '.join([block.get_text() for block in blocks])
-        mrn_match = re.search(r'\b(\d{2}[A-Z]{2}[A-Z0-9]{14})\b', all_text)
-        if mrn_match:
-            header['mrn'] = mrn_match.group(1)
-            if self.debug:
-                print(f"✓ MRN gefunden: {header['mrn']}")
-        else:
-            # Alternative: Suche Pattern "24FR..." direkt
-            mrn_match = re.search(r'\b(2[0-9][A-Z]{2}[A-Z0-9]{14,16})\b', all_text)
+        # Pattern: 18 Zeichen wie "24FRD5340043964970"
+
+        # Strategie 1: Durchsuche alle Wörter einzeln
+        for block in blocks:
+            for word in block.words:
+                if len(word.text) >= 18:
+                    # MRN Pattern: 2 Ziffern + 2 Buchstaben + 14 Zeichen
+                    if re.match(r'^\d{2}[A-Z]{2}[A-Z0-9]{14,16}$', word.text):
+                        header['mrn'] = word.text[:18]  # Nimm erste 18 Zeichen
+                        if self.debug:
+                            print(f"✓ MRN gefunden: {header['mrn']}")
+                        break
+            if header['mrn']:
+                break
+
+        # Strategie 2: Suche im kombinierten Text
+        if not header['mrn']:
+            all_text = ' '.join([block.get_text() for block in blocks])
+            mrn_match = re.search(r'\b(\d{2}[A-Z]{2}[A-Z0-9]{14,16})\b', all_text)
             if mrn_match:
-                header['mrn'] = mrn_match.group(1)
+                header['mrn'] = mrn_match.group(1)[:18]
                 if self.debug:
-                    print(f"✓ MRN gefunden (alternativ): {header['mrn']}")
+                    print(f"✓ MRN gefunden (kombiniert): {header['mrn']}")
 
         # VERSENDER (2) - VOLLSTÄNDIGE Adresse
         sender_blocks = [b for b in blocks if '(2)' in b.field_codes]
@@ -144,14 +154,25 @@ class LayoutBasedExtractor:
 
             # Finde Start: Nach "No XXXXXXX"
             sender_parts = []
-            found_no = False
+            skip_next = False
             for i, word in enumerate(sender_words):
-                if word.text == 'No' and i + 1 < len(sender_words):
-                    # Überspringe "No" und die Nummer
-                    found_no = True
+                if skip_next:
+                    skip_next = False
                     continue
-                if found_no:
-                    # Sammle alle Wörter bis zum nächsten Feld-Code oder Ende
+
+                if word.text == 'No':
+                    # Überspringe "No" und die nächste Nummer (z.B. "DE2769727")
+                    skip_next = True
+                    continue
+
+                # Wenn wir nach "No" sind, sammle Wörter
+                if i > 0 and sender_words[i-1].text == 'No':
+                    # Das ist die Nummer nach "No", überspringe
+                    continue
+
+                # Ab hier sammeln (aber nur nach "No")
+                if any(w.text == 'No' for w in sender_words[:i]):
+                    # Stoppe bei nächstem Feld-Code
                     if '(' in word.text and ')' in word.text:
                         break
                     sender_parts.append(word.text)
@@ -169,14 +190,25 @@ class LayoutBasedExtractor:
 
             # Finde Start: Nach "No XXXXXXX"
             receiver_parts = []
-            found_no = False
+            skip_next = False
             for i, word in enumerate(receiver_words):
-                if word.text == 'No' and i + 1 < len(receiver_words):
-                    # Überspringe "No" und die Nummer
-                    found_no = True
+                if skip_next:
+                    skip_next = False
                     continue
-                if found_no:
-                    # Sammle alle Wörter bis zum nächsten Feld-Code oder Ende
+
+                if word.text == 'No':
+                    # Überspringe "No" und die nächste Nummer (z.B. "ETRANGER")
+                    skip_next = True
+                    continue
+
+                # Wenn wir nach "No" sind, sammle Wörter
+                if i > 0 and receiver_words[i-1].text == 'No':
+                    # Das ist die Nummer nach "No", überspringe
+                    continue
+
+                # Ab hier sammeln (aber nur nach "No")
+                if any(w.text == 'No' for w in receiver_words[:i]):
+                    # Stoppe bei nächstem Feld-Code
                     if '(' in word.text and ')' in word.text:
                         break
                     receiver_parts.append(word.text)
@@ -254,14 +286,16 @@ class LayoutBasedExtractor:
         for i, word in enumerate(block.words):
             if '(32)' in word.text:
                 code_32_found = True
-                # Suche die nächsten 20 Wörter nach einer einzelnen Zahl (1-99)
-                for j in range(i+1, min(i+20, len(block.words))):
+                # Suche die nächsten 30 Wörter nach einer einzelnen Zahl (1-99)
+                for j in range(i+1, min(i+30, len(block.words))):
                     next_word = block.words[j].text
                     # Ist es eine einzelne Zahl 1-99?
                     if re.match(r'^(\d{1,2})$', next_word):
                         try:
                             num = int(next_word)
-                            if 1 <= num <= 99:  # Plausible Positionsnummer
+                            # Plausible Positionsnummer (1-99)
+                            # Ignoriere offensichtlich falsche Zahlen wie 31, 32, 33, 35, 37, 38 (Feld-Nummern)
+                            if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
                                 pos_number = num
                                 break
                         except:
