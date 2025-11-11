@@ -17,15 +17,17 @@ import fitz  # PyMuPDF
 from config import celery_app, DATABASE_URL, TESSERACT_CMD, TESSERACT_LANG, TESSERACT_CONFIG, UPLOAD_FOLDER
 from extractors_smart import (
     extract_mrn,
-    extract_sender_smart,
-    extract_receiver_smart,
     extract_hs_codes_smart,
-    extract_total_gross_weight_smart,
-    extract_total_packages,
     extract_countries_smart,
-    extract_positions_smart,
     detect_document_type,
     classify_procedure_type_smart
+)
+from extractors_simple import (
+    extract_sender_simple,
+    extract_receiver_simple,
+    extract_rohmasse_simple,
+    extract_packstucke_simple,
+    extract_positions_simple
 )
 
 
@@ -234,8 +236,8 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
     hs_codes = extract_hs_codes_smart(text)
     print(f"✓ HS-Codes gefunden: {len(hs_codes)} -> {hs_codes}")
 
-    # Positionen mit HS-Codes
-    positions = extract_positions_smart(text, hs_codes)
+    # Positionen mit SIMPLEN Extraktoren
+    positions = extract_positions_simple(text, hs_codes)
     print(f"✓ Positionen extrahiert: {len(positions)}")
 
     # Procedure Type aus Positionen ableiten
@@ -244,22 +246,28 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
         procedure_type = classify_procedure_type_smart(positions)
     print(f"✓ Verfahrenstyp: {procedure_type}")
 
-    # Adressen (smart)
-    sender = extract_sender_smart(text)
+    # Adressen mit SIMPLEN Extraktoren
+    sender = extract_sender_simple(text)
     print(f"✓ Absender: {sender.get('name') if sender else 'None'}")
+    if sender:
+        print(f"   - Straße: {sender.get('address')}")
+        print(f"   - PLZ/Stadt: {sender.get('zip')} {sender.get('city')}")
 
-    receiver = extract_receiver_smart(text)
+    receiver = extract_receiver_simple(text)
     print(f"✓ Empfänger: {receiver.get('name') if receiver else 'None'}")
+    if receiver:
+        print(f"   - Straße: {receiver.get('address')}")
+        print(f"   - PLZ/Stadt: {receiver.get('zip')} {receiver.get('city')}")
 
     # Länder
     origin_country, dest_country = extract_countries_smart(text)
     print(f"✓ Länder: {origin_country} → {dest_country}")
 
-    # Totals
-    total_gross_weight = extract_total_gross_weight_smart(text)
+    # Totals mit SIMPLEN Extraktoren
+    total_gross_weight = extract_rohmasse_simple(text)
     print(f"✓ Rohmasse: {total_gross_weight} kg")
 
-    total_packages = extract_total_packages(text)
+    total_packages = extract_packstucke_simple(text)
     print(f"✓ Packstücke: {total_packages}")
 
     # Nettomasse aus Positionen berechnen
