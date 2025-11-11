@@ -7,3 +7,4 @@ pdf2image==1.17.0
 pillow>=10.4.0
 psycopg2-binary
 numpy>=1.26.0
+python-dotenv==1.0.0

@@ -3,15 +3,11 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import Redis from 'ioredis';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { pool } from '@/lib/db';
 
-// Redis Client für Celery
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  db: parseInt(process.env.REDIS_DB || '0'),
-});
+const execPromise = promisify(exec);
 
 // Upload-Verzeichnis
 const UPLOAD_DIR = path.join(process.cwd(), 'ocr_worker', 'uploads');
@@ -29,77 +25,45 @@ const ALLOWED_TYPES = [
 // Max Dateigröße: 50 MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
-interface CeleryTask {
-  id: string;
-  task: string;
-  args: any[];
-  kwargs: Record<string, any>;
-  retries: number;
-  eta: string | null;
-  expires: string | null;
-}
-
 /**
- * Sendet einen Task an Celery via Redis
+ * Sendet einen Task an Celery via Python-Skript
  */
 async function sendCeleryTask(
-  taskName: string,
-  args: any[] = [],
-  kwargs: Record<string, any> = {}
+  docId: string,
+  filePath: string,
+  clearanceId: string
 ): Promise<string> {
-  const taskId = uuidv4();
+  // Python Virtual Environment und Skript-Pfad
+  const workerDir = path.join(process.cwd(), 'ocr_worker');
+  const pythonPath =
+    process.platform === 'win32'
+      ? path.join(workerDir, 'ocr_env', 'Scripts', 'python.exe')
+      : path.join(workerDir, 'ocr_env', 'bin', 'python');
+  const scriptPath = path.join(workerDir, 'send_task.py');
 
-  // Celery Protocol v2 Message Format
-  const body = [
-    args,
-    kwargs,
-    {
-      callbacks: null,
-      errbacks: null,
-      chain: null,
-      chord: null,
-    },
-  ];
+  try {
+    // Python-Skript ausführen, das den Task sendet
+    const { stdout, stderr } = await execPromise(
+      `"${pythonPath}" "${scriptPath}" "${docId}" "${filePath}" "${clearanceId}"`,
+      { cwd: workerDir }
+    );
 
-  const message = {
-    body: Buffer.from(JSON.stringify(body)).toString('base64'),
-    'content-encoding': 'utf-8',
-    'content-type': 'application/json',
-    headers: {
-      lang: 'py',
-      task: taskName,
-      id: taskId,
-      shadow: null,
-      eta: null,
-      expires: null,
-      group: null,
-      group_index: null,
-      retries: 0,
-      timelimit: [null, null],
-      root_id: taskId,
-      parent_id: null,
-      argsrepr: JSON.stringify(args),
-      kwargsrepr: JSON.stringify(kwargs),
-      origin: 'nextjs',
-    },
-    properties: {
-      correlation_id: taskId,
-      reply_to: taskId,
-      delivery_mode: 2,
-      delivery_info: {
-        exchange: '',
-        routing_key: 'celery',
-      },
-      priority: 0,
-      body_encoding: 'base64',
-      delivery_tag: taskId,
-    },
-  };
+    if (stderr) {
+      console.error('Python stderr:', stderr);
+    }
 
-  // An Redis senden (Celery Queue)
-  await redis.lpush('celery', JSON.stringify(message));
+    // Parsen des JSON-Outputs
+    const result = JSON.parse(stdout.trim());
 
-  return taskId;
+    if (!result.success) {
+      throw new Error(result.error || 'Task-Sendung fehlgeschlagen');
+    }
+
+    return result.task_id;
+  } catch (error) {
+    console.error('Fehler beim Senden des Tasks:', error);
+    throw error;
+  }
 }
 
 /**
@@ -188,11 +152,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ OcrDocument erstellt: ${docId}`);
 
-    // Celery Task senden
-    const taskId = await sendCeleryTask(
-      'worker.process_ocr_document',
-      [docId, filePath, clearanceId]
-    );
+    // Celery Task senden via Python-Skript
+    const taskId = await sendCeleryTask(docId, filePath, clearanceId);
 
     // Task-ID in Datenbank speichern
     await pool.query(
