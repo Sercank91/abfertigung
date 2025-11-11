@@ -168,6 +168,13 @@ def process_document(file_path: str, doc_id: str) -> Dict[str, Any]:
 
     full_text = '\n\n=== NEUE SEITE ===\n\n'.join(all_text)
 
+    # DEBUG: OCR-Text speichern für Debugging
+    debug_file = os.path.join(UPLOAD_FOLDER, f'ocr_debug_{doc_id}.txt')
+    with open(debug_file, 'w', encoding='utf-8') as f:
+        f.write(full_text)
+    print(f"✅ OCR-Text gespeichert: {debug_file}")
+    print(f"📄 Erste 500 Zeichen:\n{full_text[:500]}")
+
     update_ocr_document_status(doc_id, 'processing', 80)
 
     # 3. Daten extrahieren
