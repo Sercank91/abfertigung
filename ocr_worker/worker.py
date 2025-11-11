@@ -24,11 +24,13 @@ from extractors_smart import (
     extract_hs_codes_smart,
     extract_total_gross_weight_smart,   # ✅ Code (35)
     extract_total_packages,             # ✅ Code (6)
-    extract_positions_smart,
     extract_countries_smart,
     detect_document_type,
     classify_procedure_type_smart
 )
+
+# ===== SEQUENZIELLE Position-Extraktion (universell für alle EU-Länder) =====
+from extractors_sequential import extract_positions_sequential
 
 
 # Tesseract OCR konfigurieren
@@ -236,8 +238,8 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
     hs_codes = extract_hs_codes_smart(text)
     print(f"✓ HS-Codes gefunden: {len(hs_codes)} -> {hs_codes}")
 
-    # Positionen mit SMARTEN Code-Extraktoren
-    positions = extract_positions_smart(text, hs_codes)
+    # Positionen mit SEQUENZIELLER Code-basierter Extraktion (universell für alle EU-Länder)
+    positions = extract_positions_sequential(text, debug=False)
     print(f"✓ Positionen extrahiert: {len(positions)}")
 
     # Procedure Type aus Positionen ableiten
