@@ -432,46 +432,86 @@ def extract_total_gross_weight_smart(text: str) -> Optional[float]:
 
 def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
     """
-    Intelligente Positions-Extraktion basierend auf Code-Struktur
+    ROBUSTE Positions-Extraktion basierend auf Positionsnummern
 
-    Struktur im OCR-Text:
-    | PosNr | Gewicht CT, Karton HS-Code Beschreibung
-    DE2769727
-    DEUTAWERKE
-    ...
-    HS-CODE (8-stellig)
-    ohne
-    ... Unterlagen ...
-    | VERFAHRENSCODE DE TR
+    NEUE STRATEGIE (funktioniert für alle Länder und mehrere Seiten):
+    1. Suche nach Positionsnummern (| 1 |, 2, | 3, etc.)
+    2. Extrahiere jeden Positions-Block separat
+    3. In jedem Block: Beschreibung, HS-Code, Gewicht, Verfahren
 
-    STRATEGIE:
-    1. Suche HS-Code
-    2. Beschreibung: VOR dem HS-Code in der Zeile mit "CT, Karton"
-    3. Gewicht: VOR "CT" oder am Zeilenanfang (Pattern: | | 9,3 oder | 3 1.0 CT)
-    4. Verfahren: NACH HS-Code, Pattern: | XXXX DE TR
+    Unterstützt 3 verschiedene Positions-Patterns:
+    - Pattern 1: | N | N. N CT, (z.B. Position 1 mit zwei Pipes)
+    - Pattern 2: ^N N.N CT, (z.B. Position 2 ohne Pipe am Zeilenanfang)
+    - Pattern 3: | N N.N CT, (z.B. Position 3 mit einem Pipe)
+
+    Funktioniert für:
+    - Deutsche, französische, belgische, niederländische Ausfuhren
+    - T1 Dokumente
+    - Mehrere Ausfuhren pro PDF
+    - Positionen über mehrere Seiten verteilt
     """
     positions = []
+    positions_found = []
 
-    for hs_code in hs_codes:
-        # Finde HS-Code im Text
-        hs_pos = text.find(hs_code)
-        if hs_pos == -1:
-            continue
+    # SCHRITT 1: Finde alle Positionsnummern mit 3 verschiedenen Patterns
 
-        # Extrahiere großen Block: 500 Zeichen davor, 1500 danach (ERWEITERT!)
-        # Die Tabellen-Zeilen mit Gewicht/Verfahren kommen NACH "ohne" und "Unterlagen"
-        block_start = max(0, hs_pos - 500)
-        block_end = min(len(text), hs_pos + 1500)  # ERWEITERT von 800 auf 1500!
-        block = text[block_start:block_end]
+    # Pattern 1: | N | N. N CT, (Position 1 Format - zwei Pipes)
+    pattern1 = r'\|\s*(\d+)\s*\|\s*\d+\.\s*\d+[.,]?\d*\s*CT,'
+    for match in re.finditer(pattern1, text):
+        pos_num = int(match.group(1))
+        if 1 <= pos_num <= 50:  # Maximal 50 Positionen
+            positions_found.append({
+                'number': pos_num,
+                'start': match.start(),
+                'pattern': '| N | N. CT,'
+            })
 
-        # Teil vor HS-Code (für Beschreibung und Gewicht)
-        before_hs = text[block_start:hs_pos]
-        # Teil nach HS-Code (für Verfahren)
-        after_hs = text[hs_pos:block_end]
+    # Pattern 2: | N N.N CT, (Positionen 2, 3, etc. - ein Pipe)
+    pattern2 = r'^\|\s*(\d+)\s+\d+[.,]?\d*\s*CT,'
+    for match in re.finditer(pattern2, text, re.MULTILINE):
+        pos_num = int(match.group(1))
+        if 1 <= pos_num <= 50:
+            # Prüfe ob wir diese Position nicht schon haben
+            if not any(p['number'] == pos_num for p in positions_found):
+                positions_found.append({
+                    'number': pos_num,
+                    'start': match.start(),
+                    'pattern': '| N N.N CT,'
+                })
+
+    # Pattern 3: ^N N.N CT, (Fallback ohne Pipe am Zeilenanfang)
+    pattern3 = r'^(\d+)\s+\d+[.,]?\d*\s*CT,'
+    for match in re.finditer(pattern3, text, re.MULTILINE):
+        pos_num = int(match.group(1))
+        if 1 <= pos_num <= 50:
+            if not any(p['number'] == pos_num for p in positions_found):
+                positions_found.append({
+                    'number': pos_num,
+                    'start': match.start(),
+                    'pattern': 'N N.N CT,'
+                })
+
+    # Sortiere nach Text-Position (nicht nach Positionsnummer!)
+    # Wichtig für Block-Extraktion
+    positions_found.sort(key=lambda x: x['start'])
+
+    # SCHRITT 2: Extrahiere Daten für jede gefundene Position
+
+    for i, pos_info in enumerate(positions_found):
+        pos_num = pos_info['number']
+        start = pos_info['start']
+
+        # Block-Ende: Start der nächsten Position oder +2000 Zeichen
+        if i + 1 < len(positions_found):
+            end = positions_found[i + 1]['start']
+        else:
+            end = start + 2000
+
+        block = text[start:end]
 
         position = {
-            'orderNumber': len(positions) + 1,
-            'hsCode': hs_code,
+            'orderNumber': pos_num,
+            'hsCode': None,
             'description': '',
             'netWeight': 0.0,
             'grossWeight': 0.0,
@@ -481,34 +521,31 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             'currency': None
         }
 
-        # 1. BESCHREIBUNG: Suche in Zeile mit "CT, Karton" VOR dem HS-Code
-        # Pattern: "1.0 CT, Karton 2402037 Beschreibung hier"
-        # oder: "CT, Karton 2402037 Beschreibung"
-        desc_pattern = r'CT,?\s*Karton\s+\d+\s+([A-Za-zäöüÄÖÜß][^|\n]{10,150})'
-        desc_match = re.search(desc_pattern, before_hs, re.IGNORECASE)
+        # 1. BESCHREIBUNG: Aus erster Zeile nach "CT, Karton XXXXXXXX"
+        first_line = block.split('\n')[0]
+        desc_pattern = r'CT,?\s*[A-Za-z\s]*\d+\s+(.+)'
+        desc_match = re.search(desc_pattern, first_line)
         if desc_match:
-            desc = desc_match.group(1).strip()
-            # Bereinige trailing HS-Code falls vorhanden
-            desc = re.sub(r'\s*\d{8}\s*$', '', desc)
+            description = desc_match.group(1).strip()
             # Bereinige OCR-Artefakte
-            desc = re.sub(r'\s+DE\d+\s*$', '', desc)
-            position['description'] = desc[:200].strip()
+            description = re.sub(r'\s*\d{8}\s*$', '', description)
+            description = re.sub(r'\s+DE\d+\s*$', '', description)
+            position['description'] = description[:200].strip()
 
-        # Fallback: Suche nach langen deutschen Texten VOR dem HS-Code
-        if not position['description']:
-            fallback_pattern = r'([A-ZÄÖÜ][a-zäöüß]+(?:\s+[-–]?\s*[a-zäöüß]+){3,})'
-            fallback_matches = re.findall(fallback_pattern, before_hs[-300:])
-            if fallback_matches:
-                # Nimm längsten Match
-                position['description'] = max(fallback_matches, key=len)[:200].strip()
+        # 2. HS-CODE: 8-stellige Nummer im Block
+        hs_pattern = r'\b(\d{8})\b'
+        hs_match = re.search(hs_pattern, block)
+        if hs_match:
+            hs_code = hs_match.group(1)
+            # Filtere typische HS-Code-Anfänge
+            if hs_code.startswith(('84', '85', '39', '72', '73', '87', '90', '94', '95',
+                                   '40', '48', '70', '76', '82', '83', '86', '88', '89')):
+                position['hsCode'] = hs_code
 
-        # 2. NETTOGEWICHT: Suche Pattern NACH und VOR dem HS-Code
-        # WICHTIG: Eigenmasse (38) NACH HS-Code hat Priorität über CT-Wert VOR HS-Code
-        # Das "X.Y CT" ist oft nur die Anzahl Packstücke, nicht das echte Nettogewicht!
-
-        # Pattern 1: NACH HS-Code - "| | | X,Y" (Eigenmasse (38) - HÖCHSTE PRIORITÄT!)
+        # 3. GEWICHT: Multiple Patterns
+        # Pattern 1: | | | X,Y (höchste Priorität)
         weight_pattern1 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
-        weight_match1 = re.search(weight_pattern1, after_hs[:1200])  # ERWEITERT von 300 auf 1200!
+        weight_match1 = re.search(weight_pattern1, block)
         if weight_match1:
             weight_str = weight_match1.group(1).replace(',', '.')
             try:
@@ -519,10 +556,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             except ValueError:
                 pass
 
-        # Pattern 2: NACH HS-Code - "| | X,Y" (Fallback Eigenmasse)
+        # Pattern 2: | | X,Y (Fallback)
         if position['netWeight'] == 0.0:
             weight_pattern2 = r'\|\s*\|\s*(\d+[.,]\d+)'
-            weight_match2 = re.search(weight_pattern2, after_hs[:1000])  # ERWEITERT von 200 auf 1000!
+            weight_match2 = re.search(weight_pattern2, block)
             if weight_match2:
                 weight_str = weight_match2.group(1).replace(',', '.')
                 try:
@@ -533,39 +570,9 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
-        # Pattern 3: NACH HS-Code - "(38)" Code mit Gewicht
-        if position['netWeight'] == 0.0:
-            weight_pattern3 = r'\(38\)[^\n]*\n[^\n]*?(\d+[.,]\d+)'
-            weight_match3 = re.search(weight_pattern3, after_hs[:500])
-            if weight_match3:
-                weight_str = weight_match3.group(1).replace(',', '.')
-                try:
-                    weight = float(weight_str)
-                    if 0.01 <= weight <= 100:
-                        position['netWeight'] = weight
-                        position['grossWeight'] = weight
-                except ValueError:
-                    pass
-
-        # Pattern 4: VOR HS-Code - "X.Y CT" (Nur als letzter Fallback)
-        if position['netWeight'] == 0.0:
-            weight_pattern4 = r'(\d+[.,]\d+)\s*CT'
-            weight_match4 = re.search(weight_pattern4, before_hs[-200:], re.IGNORECASE)
-            if weight_match4:
-                weight_str = weight_match4.group(1).replace(',', '.')
-                try:
-                    weight = float(weight_str)
-                    if 0.01 <= weight <= 100:
-                        position['netWeight'] = weight
-                        position['grossWeight'] = weight
-                except ValueError:
-                    pass
-
-        # 3. VERFAHREN: Suche "| XXX |DE TR" oder "| XXXX DE TR" NACH dem HS-Code
-        # Pattern 1: 3-4 stelliger Code mit Pipes und Ländercodes
-        # Beispiel: "| 100  |DE TR |" oder "| 1000 DE TR"
+        # 4. VERFAHREN: XXXX DE TR Pattern
         procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
-        procedure_match = re.search(procedure_pattern, after_hs[:1200])  # ERWEITERT von 400 auf 1200!
+        procedure_match = re.search(procedure_pattern, block)
         if procedure_match:
             proc_code = procedure_match.group(1)
 
@@ -583,28 +590,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             elif proc_code in ['4000', '4071']:
                 position['procedureType'] = 'Veredelung'
 
-        # Pattern 2: Fallback - Suche nach (37) Code
-        if not position['procedure']:
-            procedure_pattern2 = r'\(37\)[^\n]*?(\d{3,4})'
-            procedure_match2 = re.search(procedure_pattern2, after_hs[:1200])  # ERWEITERT von 500 auf 1200!
-            if procedure_match2:
-                proc_code = procedure_match2.group(1)
-
-                # Wenn 3-stellig, expandiere zu 4-stellig (100 → 1000)
-                if len(proc_code) == 3:
-                    proc_code = proc_code + '0'
-
-                position['procedure'] = proc_code
-
-                # Klassifiziere Typ
-                if proc_code in ['1000', '1010', '1020', '1040']:
-                    position['procedureType'] = 'Ausfuhr'
-                elif proc_code in ['3171', '3151']:
-                    position['procedureType'] = 'Versand'
-                elif proc_code in ['4000', '4071']:
-                    position['procedureType'] = 'Veredelung'
-
         positions.append(position)
+
+    # Sortiere final nach orderNumber
+    positions.sort(key=lambda x: x['orderNumber'])
 
     return positions
 
