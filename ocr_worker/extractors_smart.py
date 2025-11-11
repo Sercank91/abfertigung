@@ -432,124 +432,134 @@ def extract_total_gross_weight_smart(text: str) -> Optional[float]:
 
 def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
     """
-    Intelligente Positions-Extraktion
+    Intelligente Positions-Extraktion basierend auf Code-Struktur
 
-    Für jeden HS-Code:
-    1. Finde die Position im Text
-    2. Suche nach Beschreibung in der Nähe
-    3. Suche nach Gewicht in der Nähe
-    4. Suche nach Procedure Code
+    Struktur im OCR-Text:
+    | PosNr | Gewicht CT, Karton HS-Code Beschreibung
+    DE2769727
+    DEUTAWERKE
+    ...
+    HS-CODE (8-stellig)
+    ohne
+    ... Unterlagen ...
+    | VERFAHRENSCODE DE TR
+
+    STRATEGIE:
+    1. Suche HS-Code
+    2. Beschreibung: VOR dem HS-Code in der Zeile mit "CT, Karton"
+    3. Gewicht: VOR "CT" oder am Zeilenanfang (Pattern: | | 9,3 oder | 3 1.0 CT)
+    4. Verfahren: NACH HS-Code, Pattern: | XXXX DE TR
     """
     positions = []
 
-    # Splitze Text in Seiten
-    pages = text.split('=== NEUE SEITE ===')
-
     for hs_code in hs_codes:
-        # Finde alle Vorkommen dieses HS-Codes
-        for page in pages:
-            if hs_code in page:
-                # Finde Position des HS-Codes
-                hs_pos = page.find(hs_code)
+        # Finde HS-Code im Text
+        hs_pos = text.find(hs_code)
+        if hs_pos == -1:
+            continue
 
-                # Extrahiere Block um den HS-Code
-                # Kleinerer Block: nur 50 Zeichen davor, 200 danach
-                # um Überlappungen mit anderen Positionen zu vermeiden
-                block_start = max(0, hs_pos - 50)
-                block_end = min(len(page), hs_pos + 200)
-                block = page[block_start:block_end]
+        # Extrahiere großen Block: 500 Zeichen davor, 800 danach
+        block_start = max(0, hs_pos - 500)
+        block_end = min(len(text), hs_pos + 800)
+        block = text[block_start:block_end]
 
-                # Stoppe bei nächstem HS-Code um Überlappung zu vermeiden
-                next_hs_pos = -1
-                for other_code in hs_codes:
-                    if other_code != hs_code:
-                        pos = block.find(other_code)
-                        if pos > 0 and (next_hs_pos == -1 or pos < next_hs_pos):
-                            next_hs_pos = pos
+        # Teil vor HS-Code (für Beschreibung und Gewicht)
+        before_hs = text[block_start:hs_pos]
+        # Teil nach HS-Code (für Verfahren)
+        after_hs = text[hs_pos:block_end]
 
-                if next_hs_pos > 0:
-                    block = block[:next_hs_pos]
+        position = {
+            'orderNumber': len(positions) + 1,
+            'hsCode': hs_code,
+            'description': '',
+            'netWeight': 0.0,
+            'grossWeight': 0.0,
+            'procedure': None,
+            'procedureType': None,
+            'value': None,
+            'currency': None
+        }
 
-                position = {
-                    'orderNumber': len(positions) + 1,
-                    'hsCode': hs_code,
-                    'description': '',
-                    'netWeight': 0.0,
-                    'grossWeight': 0.0,
-                    'procedure': None,
-                    'procedureType': None,
-                    'value': None,
-                    'currency': None
-                }
+        # 1. BESCHREIBUNG: Suche in Zeile mit "CT, Karton" VOR dem HS-Code
+        # Pattern: "1.0 CT, Karton 2402037 Beschreibung hier"
+        # oder: "CT, Karton 2402037 Beschreibung"
+        desc_pattern = r'CT,?\s*Karton\s+\d+\s+([A-Za-zäöüÄÖÜß][^|\n]{10,150})'
+        desc_match = re.search(desc_pattern, before_hs, re.IGNORECASE)
+        if desc_match:
+            desc = desc_match.group(1).strip()
+            # Bereinige trailing HS-Code falls vorhanden
+            desc = re.sub(r'\s*\d{8}\s*$', '', desc)
+            # Bereinige OCR-Artefakte
+            desc = re.sub(r'\s+DE\d+\s*$', '', desc)
+            position['description'] = desc[:200].strip()
 
-                # Suche nach Beschreibung (längere Texte mit Substantiven)
-                # Typische Beschreibungen: "Verbindungselemente für...", "Kabel elektrische..."
-                desc_patterns = [
-                    r'([A-ZÄÖÜ][a-zäöüß]+(?:\s+[a-zäöüß]+){2,}(?:\s+[a-zäöüß]+)?)',  # Deutsche Substantive
-                    r'(für\s+[A-Za-zäöü]+(?:\s+[a-zäöü]+){1,3})',  # "für X und Y"
-                ]
+        # Fallback: Suche nach langen deutschen Texten VOR dem HS-Code
+        if not position['description']:
+            fallback_pattern = r'([A-ZÄÖÜ][a-zäöüß]+(?:\s+[-–]?\s*[a-zäöüß]+){3,})'
+            fallback_matches = re.findall(fallback_pattern, before_hs[-300:])
+            if fallback_matches:
+                # Nimm längsten Match
+                position['description'] = max(fallback_matches, key=len)[:200].strip()
 
-                for pattern in desc_patterns:
-                    matches = re.findall(pattern, block)
-                    if matches:
-                        # Nimm längste Beschreibung
-                        desc = max(matches, key=len)
-                        if len(desc) > len(position['description']):
-                            position['description'] = desc[:200]
+        # 2. NETTOGEWICHT: Suche Pattern VOR "CT" oder am Zeilenanfang
+        # Pattern 1: "| | 9,3" oder "| 3 1.0 CT"
+        weight_pattern1 = r'\|\s*\|\s*(\d+[.,]\d+)'  # | | 9,3
+        weight_match1 = re.search(weight_pattern1, before_hs[-200:])
+        if weight_match1:
+            weight_str = weight_match1.group(1).replace(',', '.')
+            try:
+                weight = float(weight_str)
+                if 0.01 <= weight <= 100:
+                    position['netWeight'] = weight
+                    position['grossWeight'] = weight
+            except ValueError:
+                pass
 
-                # Suche nach Gewicht (kleinere Zahlen, meist < 50 kg für Positionen)
-                # Priorisiere Gewichte mit "kg" oder nahe bei Gewichts-Feldnummern
+        # Pattern 2: "3 1.0 CT" - nimm die erste Zahl vor CT
+        if position['netWeight'] == 0.0:
+            weight_pattern2 = r'\|\s*\d+\s*\|\s*\d+\.\s*(\d+[.,]\d+)\s*CT'
+            weight_match2 = re.search(weight_pattern2, before_hs[-200:], re.IGNORECASE)
+            if weight_match2:
+                weight_str = weight_match2.group(1).replace(',', '.')
+                try:
+                    weight = float(weight_str)
+                    if 0.01 <= weight <= 100:
+                        position['netWeight'] = weight
+                        position['grossWeight'] = weight
+                except ValueError:
+                    pass
 
-                # Pattern 1: Suche nach explizitem "kg" Keyword
-                weight_kg_pattern = r'(\d+[.,]\d{1,3})\s*kg'
-                weight_kg_match = re.search(weight_kg_pattern, block, re.IGNORECASE)
-                if weight_kg_match:
-                    weight_str = weight_kg_match.group(1).replace(',', '.')
-                    try:
-                        weight = float(weight_str)
-                        if 0.01 < weight < 100:  # Erweitert für größere Gewichte
-                            position['netWeight'] = weight
-                            position['grossWeight'] = weight
-                    except ValueError:
-                        pass
+        # Pattern 3: Suche einfach Zahl vor "CT"
+        if position['netWeight'] == 0.0:
+            weight_pattern3 = r'(\d+[.,]\d+)\s*CT'
+            weight_match3 = re.search(weight_pattern3, before_hs[-150:], re.IGNORECASE)
+            if weight_match3:
+                weight_str = weight_match3.group(1).replace(',', '.')
+                try:
+                    weight = float(weight_str)
+                    if 0.01 <= weight <= 100:
+                        position['netWeight'] = weight
+                        position['grossWeight'] = weight
+                except ValueError:
+                    pass
 
-                # Pattern 2: Fallback - suche alle Zahlen mit Dezimalen
-                if position['netWeight'] == 0.0:
-                    weight_pattern = r'\b(\d+[.,]\d{1,3})\b'
-                    weight_matches = re.findall(weight_pattern, block)
+        # 3. VERFAHREN: Suche "| XXXX DE TR" NACH dem HS-Code
+        # Pattern: | 4-stelliger Code DE TR
+        procedure_pattern = r'\|\s*(\d{4})\s+[A-Z]{2}\s+[A-Z]{2}'
+        procedure_match = re.search(procedure_pattern, after_hs[:400])
+        if procedure_match:
+            proc_code = procedure_match.group(1)
+            position['procedure'] = proc_code
 
-                    # Filtere HS-Codes und andere False Positives raus
-                    for weight_str in weight_matches:
-                        # Überspringe wenn es der HS-Code selbst ist
-                        if weight_str.replace(',', '.').replace('.', '') == hs_code.replace('.', ''):
-                            continue
+            # Klassifiziere Typ
+            if proc_code in ['1000', '1010', '1020', '1040']:
+                position['procedureType'] = 'Ausfuhr'
+            elif proc_code in ['3171', '3151']:
+                position['procedureType'] = 'Versand'
+            elif proc_code in ['4000', '4071']:
+                position['procedureType'] = 'Veredelung'
 
-                        weight_str = weight_str.replace(',', '.')
-                        try:
-                            weight = float(weight_str)
-                            # Positionsgewichte sind meist zwischen 0.01 und 100 kg
-                            # Filtere typische False Positives: 84.xx, 85.xx (HS-Codes)
-                            if 0.01 <= weight < 100 and not (80 <= weight < 100):
-                                position['netWeight'] = weight
-                                position['grossWeight'] = weight
-                                break
-                        except ValueError:
-                            continue
-
-                # Suche nach Procedure Code (1000, 1010, etc.)
-                procedure_codes = ['1000', '1010', '1020', '1040', '3171', '3151', '4000', '4071']
-                for code in procedure_codes:
-                    if code in block:
-                        position['procedure'] = code
-                        # Klassifiziere Typ
-                        if code in ['1000', '1010', '1020', '1040']:
-                            position['procedureType'] = 'T2'
-                        elif code in ['3171', '3151']:
-                            position['procedureType'] = 'T1'
-                        break
-
-                positions.append(position)
-                break  # Nur erste Vorkommen pro HS-Code nehmen
+        positions.append(position)
 
     return positions
 
