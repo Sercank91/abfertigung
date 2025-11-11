@@ -570,6 +570,22 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
+        # Pattern 3: | | | XXX (Ganzzahl - OCR-Fehler: Komma fehlt)
+        # Beispiel: "| | | 276" = 2,76 kg (Komma wurde nicht erkannt)
+        if position['netWeight'] == 0.0:
+            weight_pattern3 = r'\|\s*\|\s*\|\s*(\d{2,3})\b'
+            weight_match3 = re.search(weight_pattern3, block)
+            if weight_match3:
+                number = weight_match3.group(1)
+                try:
+                    # Interpretiere als Dezimalzahl: 276 → 2.76 kg, 85 → 0.85 kg
+                    weight = float(number) / 100.0
+                    if 0.01 <= weight <= 100:
+                        position['netWeight'] = weight
+                        position['grossWeight'] = weight
+                except ValueError:
+                    pass
+
         # 4. VERFAHREN: XXXX DE TR Pattern
         procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
         procedure_match = re.search(procedure_pattern, block)
