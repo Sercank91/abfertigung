@@ -18,7 +18,8 @@ from extractors_smart import (
 )
 
 # Lade OCR-Debug-Text
-debug_file = "/home/user/abfertigung/ocr_worker/uploads/ocr_debug_test.txt"
+# Verwende relativen Pfad - funktioniert auf Windows und Linux
+debug_file = os.path.join(os.path.dirname(__file__), "uploads", "ocr_debug_test.txt")
 
 if os.path.exists(debug_file):
     with open(debug_file, 'r', encoding='utf-8') as f:
