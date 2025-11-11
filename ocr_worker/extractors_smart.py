@@ -53,9 +53,8 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
     match = re.search(r'\[1\]\s*([A-ZÄÖÜ])', text)
     if match:
         start = match.start()
-        # Nimm Block um [1] herum: 100 vor, 500 nach
-        block_start = max(0, start - 100)
-        block = text[block_start:start+500]
+        # Nimm Block ab [1]: 600 Zeichen nach [1] für vollständige Adresse
+        block = text[start:start+600]
 
     # PRIORITÄT 2: Falls kein [1], suche nach (2) Versender Block
     if not block:
