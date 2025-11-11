@@ -38,7 +38,7 @@ celery_app.conf.update(
 
 # Tesseract OCR Settings
 TESSERACT_CMD = r'C:\Program Files\Tesseract-OCR\tesseract.exe' if os.name == 'nt' else 'tesseract'
-TESSERACT_LANG = 'deu'  # Deutsch für deutsche Zolldokumente
+TESSERACT_LANG = 'deu+fra+eng'  # Multi-Language: Deutsch, Französisch, Englisch
 TESSERACT_CONFIG = r'--oem 3 --psm 6'  # LSTM OCR Engine, Uniform text block
 
 # File Upload Settings

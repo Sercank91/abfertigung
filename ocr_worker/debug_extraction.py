@@ -49,8 +49,8 @@ def ocr_image(image: Image.Image) -> str:
     try:
         text = pytesseract.image_to_string(
             image,
-            lang='deu+eng',
-            config='--psm 6'
+            lang='deu+fra+eng',  # Multi-Language: Deutsch, Französisch, Englisch
+            config='--oem 3 --psm 6'
         )
         return text
     except Exception as e:
