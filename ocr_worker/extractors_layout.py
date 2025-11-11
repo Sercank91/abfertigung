@@ -120,41 +120,71 @@ class LayoutBasedExtractor:
             'destinationCountry': None
         }
 
-        # MRN: Suche in allen Blöcken
-        for block in blocks:
-            full_text = block.get_text()
-            mrn_match = re.search(r'\b(\d{2}[A-Z]{2}[A-Z0-9]{14})\b', full_text)
+        # MRN: Suche in ALLEN Blöcken UND allen Wörtern
+        # MRN ist oft rechts oben, kann außerhalb großer Blöcke sein
+        all_text = ' '.join([block.get_text() for block in blocks])
+        mrn_match = re.search(r'\b(\d{2}[A-Z]{2}[A-Z0-9]{14})\b', all_text)
+        if mrn_match:
+            header['mrn'] = mrn_match.group(1)
+            if self.debug:
+                print(f"✓ MRN gefunden: {header['mrn']}")
+        else:
+            # Alternative: Suche Pattern "24FR..." direkt
+            mrn_match = re.search(r'\b(2[0-9][A-Z]{2}[A-Z0-9]{14,16})\b', all_text)
             if mrn_match:
                 header['mrn'] = mrn_match.group(1)
                 if self.debug:
-                    print(f"✓ MRN gefunden: {header['mrn']}")
-                break
+                    print(f"✓ MRN gefunden (alternativ): {header['mrn']}")
 
-        # VERSENDER (2)
+        # VERSENDER (2) - VOLLSTÄNDIGE Adresse
         sender_blocks = [b for b in blocks if '(2)' in b.field_codes]
         if sender_blocks:
             sender_block = sender_blocks[0]
-            sender_text = sender_block.get_text()
+            sender_words = sender_block.words
 
-            # Extrahiere Name (nach "No" oder direkt nach (2))
-            name_match = re.search(r'No\s+[A-Z0-9]+\s+(.+?)(?:\n|\s{3,}|$)', sender_text)
-            if name_match:
-                header['sender'] = name_match.group(1).strip()[:100]
+            # Finde Start: Nach "No XXXXXXX"
+            sender_parts = []
+            found_no = False
+            for i, word in enumerate(sender_words):
+                if word.text == 'No' and i + 1 < len(sender_words):
+                    # Überspringe "No" und die Nummer
+                    found_no = True
+                    continue
+                if found_no:
+                    # Sammle alle Wörter bis zum nächsten Feld-Code oder Ende
+                    if '(' in word.text and ')' in word.text:
+                        break
+                    sender_parts.append(word.text)
+
+            if sender_parts:
+                header['sender'] = ' '.join(sender_parts[:30])  # Max 30 Wörter
                 if self.debug:
-                    print(f"✓ Versender: {header['sender'][:50]}...")
+                    print(f"✓ Versender: {header['sender'][:80]}...")
 
-        # EMPFÄNGER (8)
+        # EMPFÄNGER (8) - VOLLSTÄNDIGE Adresse
         receiver_blocks = [b for b in blocks if '(8)' in b.field_codes]
         if receiver_blocks:
             receiver_block = receiver_blocks[0]
-            receiver_text = receiver_block.get_text()
+            receiver_words = receiver_block.words
 
-            # Extrahiere Name (nach "No" oder direkt nach (8))
-            name_match = re.search(r'No\s+[A-Z0-9]+\s+(.+?)(?:\n|\s{3,}|$)', receiver_text)
-            if name_match:
-                header['receiver'] = name_match.group(1).strip()[:100]
+            # Finde Start: Nach "No XXXXXXX"
+            receiver_parts = []
+            found_no = False
+            for i, word in enumerate(receiver_words):
+                if word.text == 'No' and i + 1 < len(receiver_words):
+                    # Überspringe "No" und die Nummer
+                    found_no = True
+                    continue
+                if found_no:
+                    # Sammle alle Wörter bis zum nächsten Feld-Code oder Ende
+                    if '(' in word.text and ')' in word.text:
+                        break
+                    receiver_parts.append(word.text)
+
+            if receiver_parts:
+                header['receiver'] = ' '.join(receiver_parts[:30])  # Max 30 Wörter
                 if self.debug:
-                    print(f"✓ Empfänger: {header['receiver'][:50]}...")
+                    print(f"✓ Empfänger: {header['receiver'][:80]}...")
 
         # ROHMASSE (35)
         weight_blocks = [b for b in blocks if '(35)' in b.field_codes]
@@ -214,11 +244,33 @@ class LayoutBasedExtractor:
         }
 
         # 1. POSITIONSNUMMER aus (32)
-        # Suche Pattern: "(32) ...\n1 CT" oder ähnlich
-        block_text = block.get_text()
-        pos_match = re.search(r'(?:Art\.\s*No\s*\(32\)|\(32\))[^\n]*\n\s*(\d+)\s+(?:CT|COLIS)', block_text, re.IGNORECASE)
-        if pos_match:
-            position['orderNumber'] = int(pos_match.group(1))
+        # Die Positionsnummer steht oft am Anfang einer Zeile nach (32)
+        # Patterns: "1 CT", "2 CT", "| 1 CT", etc.
+
+        # Finde (32) in den Wörtern
+        code_32_found = False
+        pos_number = None
+
+        for i, word in enumerate(block.words):
+            if '(32)' in word.text:
+                code_32_found = True
+                # Suche die nächsten 20 Wörter nach einer einzelnen Zahl (1-99)
+                for j in range(i+1, min(i+20, len(block.words))):
+                    next_word = block.words[j].text
+                    # Ist es eine einzelne Zahl 1-99?
+                    if re.match(r'^(\d{1,2})$', next_word):
+                        try:
+                            num = int(next_word)
+                            if 1 <= num <= 99:  # Plausible Positionsnummer
+                                pos_number = num
+                                break
+                        except:
+                            pass
+                if pos_number:
+                    break
+
+        if pos_number:
+            position['orderNumber'] = pos_number
             if self.debug:
                 print(f"✓ (32) Positionsnummer: {position['orderNumber']}")
         else:
