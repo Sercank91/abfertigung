@@ -4,6 +4,6 @@ redis==5.0.1
 paddleocr
 paddlepaddle==3.2.1
 pdf2image==1.17.0
-pillow==10.1.0
-psycopg2-binary==2.9.9
-numpy==1.26.2
+pillow>=10.4.0
+psycopg2-binary
+numpy>=1.26.0
