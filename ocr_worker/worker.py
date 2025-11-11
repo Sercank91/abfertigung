@@ -113,7 +113,8 @@ def ocr_image(image: Image.Image) -> str:
     import numpy as np
     img_array = np.array(image)
 
-    result = ocr.ocr(img_array, cls=True)
+    # PaddleOCR 3.x - ocr() ohne cls Argument
+    result = ocr.ocr(img_array)
 
     # Text aus Ergebnis extrahieren
     text_lines = []
