@@ -5,7 +5,6 @@ Verarbeitet ein vorhandenes OCR-Dokument neu
 
 import sys
 import psycopg2
-from worker import process_ocr_document_task
 
 DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/abfertigung'
 
@@ -37,14 +36,21 @@ def main():
             cur.execute('DELETE FROM "Shipment" WHERE "ocrDocumentId" = %s', (doc_id,))
             conn.commit()
 
-            # Neu verarbeiten
-            process_ocr_document_task(doc_id, file_path, clearance_id)
+            cur.close()
+            conn.close()
+
+            # Neu verarbeiten - direkt den Worker aufrufen
+            print("Starte Neuverarbeitung...")
+            from worker import process_ocr_document
+
+            # Synchrone Ausführung (nicht über Celery)
+            result = process_ocr_document(doc_id, file_path, clearance_id)
+            print("\n✅ Fertig!")
 
         else:
             print("Kein Dokument gefunden")
-
-        cur.close()
-        conn.close()
+            cur.close()
+            conn.close()
 
     except Exception as e:
         print(f"Fehler: {e}")
