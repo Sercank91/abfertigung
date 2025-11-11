@@ -38,7 +38,7 @@ celery_app.conf.update(
 
 # PaddleOCR Settings
 PADDLE_USE_GPU = False  # CPU-Modus (schneller Setup)
-PADDLE_LANG = 'en'  # Englisch (für internationale Dokumente)
+PADDLE_LANG = 'german'  # Deutsch (für deutsche Zolldokumente)
 PADDLE_DET_DB_THRESH = 0.3  # Text Detection Threshold
 PADDLE_REC_CONF_THRESH = 0.5  # Recognition Confidence Threshold
 
