@@ -532,10 +532,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
-        # Pattern 3: VOR HS-Code - "X.Y CT" (Nur als letzter Fallback)
+        # Pattern 3: NACH HS-Code - "(38)" Code mit Gewicht
         if position['netWeight'] == 0.0:
-            weight_pattern3 = r'(\d+[.,]\d+)\s*CT'
-            weight_match3 = re.search(weight_pattern3, before_hs[-200:], re.IGNORECASE)
+            weight_pattern3 = r'\(38\)[^\n]*\n[^\n]*?(\d+[.,]\d+)'
+            weight_match3 = re.search(weight_pattern3, after_hs[:500])
             if weight_match3:
                 weight_str = weight_match3.group(1).replace(',', '.')
                 try:
@@ -546,8 +546,22 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
+        # Pattern 4: VOR HS-Code - "X.Y CT" (Nur als letzter Fallback)
+        if position['netWeight'] == 0.0:
+            weight_pattern4 = r'(\d+[.,]\d+)\s*CT'
+            weight_match4 = re.search(weight_pattern4, before_hs[-200:], re.IGNORECASE)
+            if weight_match4:
+                weight_str = weight_match4.group(1).replace(',', '.')
+                try:
+                    weight = float(weight_str)
+                    if 0.01 <= weight <= 100:
+                        position['netWeight'] = weight
+                        position['grossWeight'] = weight
+                except ValueError:
+                    pass
+
         # 3. VERFAHREN: Suche "| XXX |DE TR" oder "| XXXX DE TR" NACH dem HS-Code
-        # Pattern: 3-4 stelliger Code, flexibel mit Pipes und Leerzeichen
+        # Pattern 1: 3-4 stelliger Code mit Pipes und Ländercodes
         # Beispiel: "| 100  |DE TR |" oder "| 1000 DE TR"
         procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
         procedure_match = re.search(procedure_pattern, after_hs[:400])
@@ -567,6 +581,27 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 position['procedureType'] = 'Versand'
             elif proc_code in ['4000', '4071']:
                 position['procedureType'] = 'Veredelung'
+
+        # Pattern 2: Fallback - Suche nach (37) Code
+        if not position['procedure']:
+            procedure_pattern2 = r'\(37\)[^\n]*?(\d{3,4})'
+            procedure_match2 = re.search(procedure_pattern2, after_hs[:500])
+            if procedure_match2:
+                proc_code = procedure_match2.group(1)
+
+                # Wenn 3-stellig, expandiere zu 4-stellig (100 → 1000)
+                if len(proc_code) == 3:
+                    proc_code = proc_code + '0'
+
+                position['procedure'] = proc_code
+
+                # Klassifiziere Typ
+                if proc_code in ['1000', '1010', '1020', '1040']:
+                    position['procedureType'] = 'Ausfuhr'
+                elif proc_code in ['3171', '3151']:
+                    position['procedureType'] = 'Versand'
+                elif proc_code in ['4000', '4071']:
+                    position['procedureType'] = 'Veredelung'
 
         positions.append(position)
 
