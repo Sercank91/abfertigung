@@ -113,37 +113,44 @@ export default async function EditClearancePage({
 
   let anmNr = decodeURIComponent(params.anmNr);
 
-  // ✅ Prüfe ob Parameter eine ID ist (nur Zahlen)
+  // ✅ Wenn Parameter nur Zahlen sind, könnte es anmNr ODER ID sein
   if (/^\d+$/.test(anmNr)) {
-    // Es ist eine ID - hole anmNr aus Datenbank und redirecte
-    try {
-      const result = await pool.query(
-        `SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2`,
-        [parseInt(anmNr), user.tenantId]
-      );
+    // Versuche ZUERST als anmNr (häufigster Fall)
+    const existsAsAnmNr = await checkClearanceExists(anmNr, user.tenantId);
 
-      if (result.rows.length === 0) {
+    if (!existsAsAnmNr) {
+      // Nicht als anmNr gefunden - versuche als ID
+      try {
+        const result = await pool.query(
+          `SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2`,
+          [parseInt(anmNr), user.tenantId]
+        );
+
+        if (result.rows.length > 0) {
+          // Als ID gefunden - redirecte zur anmNr
+          const actualAnmNr = result.rows[0].anmNr;
+          redirect(`/dashboard/clearances/${actualAnmNr}`);
+        } else {
+          // Weder anmNr noch ID gefunden
+          redirect('/dashboard/clearances');
+        }
+      } catch (error) {
+        // Next.js redirect wirft einen speziellen Error - diesen durchlassen
+        if (error && typeof error === 'object' && 'digest' in error &&
+            typeof error.digest === 'string' && error.digest.includes('NEXT_REDIRECT')) {
+          throw error;
+        }
+        console.error('Fehler beim Laden der Clearance:', error);
         redirect('/dashboard/clearances');
       }
-
-      const actualAnmNr = result.rows[0].anmNr;
-      redirect(`/dashboard/clearances/${actualAnmNr}`);
-    } catch (error) {
-      // Next.js redirect wirft einen speziellen Error - diesen durchlassen
-      if (error && typeof error === 'object' && 'digest' in error &&
-          typeof error.digest === 'string' && error.digest.includes('NEXT_REDIRECT')) {
-        throw error;
-      }
-      console.error('Fehler beim Laden der Clearance:', error);
+    }
+    // Wenn existsAsAnmNr true ist, machen wir einfach weiter unten
+  } else {
+    // Kein reiner Zahlenstring - prüfe als anmNr
+    const exists = await checkClearanceExists(anmNr, user.tenantId);
+    if (!exists) {
       redirect('/dashboard/clearances');
     }
-  }
-
-  // ✅ Prüfe ob Clearance mit dieser AnmNr existiert
-  const exists = await checkClearanceExists(anmNr, user.tenantId);
-
-  if (!exists) {
-    redirect('/dashboard/clearances');
   }
   
   const data = await getInitialData();
