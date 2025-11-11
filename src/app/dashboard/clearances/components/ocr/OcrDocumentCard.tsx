@@ -41,9 +41,11 @@ interface OcrDocumentCardProps {
   createdAt: string;
   shipmentCount: number;
   shipments: Shipment[];
+  onDelete?: (id: string) => void;
 }
 
 export default function OcrDocumentCard({
+  id,
   fileName,
   fileSize,
   status,
@@ -53,6 +55,7 @@ export default function OcrDocumentCard({
   createdAt,
   shipmentCount,
   shipments,
+  onDelete,
 }: OcrDocumentCardProps) {
   const [expandedShipments, setExpandedShipments] = useState<Set<string>>(new Set());
 
@@ -130,7 +133,20 @@ export default function OcrDocumentCard({
               </p>
             </div>
           </div>
-          {getStatusBadge()}
+          <div className="flex items-center gap-2">
+            {getStatusBadge()}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(id)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                title="Dokument löschen"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

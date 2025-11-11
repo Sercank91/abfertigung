@@ -57,6 +57,7 @@ interface UseOcrDocumentsReturn {
   error: string | null;
   uploadFile: (file: File, clearanceId: string) => Promise<void>;
   refreshDocuments: () => Promise<void>;
+  deleteDocument: (documentId: string) => Promise<void>;
 }
 
 export function useOcrDocuments(clearanceId: string): UseOcrDocumentsReturn {
@@ -159,6 +160,28 @@ export function useOcrDocuments(clearanceId: string): UseOcrDocumentsReturn {
     setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
   };
 
+  const deleteDocument = async (documentId: string) => {
+    try {
+      setError(null);
+
+      const response = await fetch(`/api/ocr/documents/${documentId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Löschen fehlgeschlagen');
+      }
+
+      // Nach Löschen Liste neu laden
+      await fetchDocuments();
+    } catch (err) {
+      console.error('Fehler beim Löschen:', err);
+      setError(err instanceof Error ? err.message : 'Löschen fehlgeschlagen');
+      throw err;
+    }
+  };
+
   const refreshDocuments = useCallback(async () => {
     await fetchDocuments();
   }, [fetchDocuments]);
@@ -174,5 +197,6 @@ export function useOcrDocuments(clearanceId: string): UseOcrDocumentsReturn {
     error,
     uploadFile,
     refreshDocuments,
+    deleteDocument,
   };
 }

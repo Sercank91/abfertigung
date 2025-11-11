@@ -10,10 +10,16 @@ interface PositionenTabProps {
 }
 
 export default function PositionenTab({ clearanceId, onNext }: PositionenTabProps) {
-  const { documents, loading, error, uploadFile, refreshDocuments } = useOcrDocuments(clearanceId);
+  const { documents, loading, error, uploadFile, refreshDocuments, deleteDocument } = useOcrDocuments(clearanceId);
 
   const handleUpload = async (file: File) => {
     await uploadFile(file, clearanceId);
+  };
+
+  const handleDelete = async (documentId: string) => {
+    if (confirm('Möchten Sie dieses Dokument wirklich löschen?')) {
+      await deleteDocument(documentId);
+    }
   };
 
   return (
@@ -82,7 +88,7 @@ export default function PositionenTab({ clearanceId, onNext }: PositionenTabProp
           </div>
 
           {documents.map((doc) => (
-            <OcrDocumentCard key={doc.id} {...doc} />
+            <OcrDocumentCard key={doc.id} {...doc} onDelete={handleDelete} />
           ))}
         </div>
       )}
