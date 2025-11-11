@@ -201,29 +201,31 @@ class LayoutBasedExtractor:
             receiver_block = receiver_blocks[0]
             receiver_words = receiver_block.words
 
-            # Finde Start: Nach "No XXXXXXX"
+            # Strategie: Sammle ALLE Wörter nach (8), überspringe nur "No" und die ID-Nummer
             receiver_parts = []
-            skip_next = False
+            found_field_8 = False
+            skip_count = 0
+
             for i, word in enumerate(receiver_words):
-                if skip_next:
-                    skip_next = False
+                # Finde (8) Feld
+                if '(8)' in word.text:
+                    found_field_8 = True
                     continue
 
-                if word.text == 'No':
-                    # Überspringe "No" und die nächste Nummer (z.B. "ETRANGER")
-                    skip_next = True
-                    continue
+                if found_field_8:
+                    # Überspringe "No" und die nächste Nummer (nur einmal am Anfang)
+                    if word.text == 'No' and skip_count == 0:
+                        skip_count = 1
+                        continue
+                    if skip_count == 1:
+                        # Das ist die ID-Nummer nach "No", überspringe
+                        skip_count = 2
+                        continue
 
-                # Wenn wir nach "No" sind, sammle Wörter
-                if i > 0 and receiver_words[i-1].text == 'No':
-                    # Das ist die Nummer nach "No", überspringe
-                    continue
-
-                # Ab hier sammeln (aber nur nach "No")
-                if any(w.text == 'No' for w in receiver_words[:i]):
-                    # Stoppe bei nächstem Feld-Code
+                    # Ab jetzt alle Wörter sammeln bis zum nächsten Feld-Code
                     if '(' in word.text and ')' in word.text:
                         break
+
                     receiver_parts.append(word.text)
 
             if receiver_parts:
@@ -295,6 +297,7 @@ class LayoutBasedExtractor:
         # Finde (32) in den Wörtern
         code_32_found = False
         pos_number = None
+        candidates = []  # Sammle alle Kandidaten
 
         for i, word in enumerate(block.words):
             if '(32)' in word.text:
@@ -310,17 +313,20 @@ class LayoutBasedExtractor:
                             # Plausible Positionsnummer (1-99)
                             # Ignoriere offensichtlich falsche Zahlen wie 31, 32, 33, 35, 37, 38 (Feld-Nummern)
                             if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
-                                # Prüfe ob direkt danach "CT" oder "COLIS" kommt (gutes Zeichen!)
+                                # Prüfe ob direkt danach "CT" oder "COLIS" kommt (beste Kandidaten!)
                                 if j+1 < len(block.words) and block.words[j+1].text.upper() in ['CT', 'COLIS']:
-                                    pos_number = num
-                                    break
-                                # Oder nehme die erste plausible Zahl wenn nichts besseres gefunden
-                                elif not pos_number:
-                                    pos_number = num
+                                    candidates.append((num, 100))  # Hohe Priorität
+                                else:
+                                    candidates.append((num, j-i))  # Priorität = Abstand von (32)
                         except:
                             pass
-                if pos_number:
-                    break
+                break
+
+        # Wähle besten Kandidaten (höchste Priorität = kleinster Wert)
+        if candidates:
+            # Sortiere: Erst nach Priorität (absteigend), dann nach Nummer (aufsteigend)
+            candidates.sort(key=lambda x: (-x[1], x[0]))
+            pos_number = candidates[0][0]
 
         if pos_number:
             position['orderNumber'] = pos_number
