@@ -146,7 +146,7 @@ def extract_positions_sequential(text: str, debug: bool = True) -> List[Dict]:
         # SPEZIAL: Die Positionsnummer steht oft am Zeilenanfang NACH dem "(32)" Header
         # Beispiel FR: "Art. No (32) ...\n1 CT Générateurs"
         # Ignoriere Zahlen in Klammern wie "(31/2)"
-        pos_num_pattern = r'(?:Art\.\s*No\s*\(32\)|\\(32\))[^\n]*\n\s*(\d+)\s+(?:CT|COLIS)'
+        pos_num_pattern = r'(?:Art\.\s*No\s*\(32\)|\(32\))[^\n]*\n\s*(\d+)\s+(?:CT|COLIS)'
         pos_num_match = re.search(pos_num_pattern, block, re.IGNORECASE)
         if pos_num_match:
             pos_num = pos_num_match.group(1)
