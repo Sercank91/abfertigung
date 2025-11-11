@@ -458,9 +458,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
         if hs_pos == -1:
             continue
 
-        # Extrahiere großen Block: 500 Zeichen davor, 800 danach
+        # Extrahiere großen Block: 500 Zeichen davor, 1500 danach (ERWEITERT!)
+        # Die Tabellen-Zeilen mit Gewicht/Verfahren kommen NACH "ohne" und "Unterlagen"
         block_start = max(0, hs_pos - 500)
-        block_end = min(len(text), hs_pos + 800)
+        block_end = min(len(text), hs_pos + 1500)  # ERWEITERT von 800 auf 1500!
         block = text[block_start:block_end]
 
         # Teil vor HS-Code (für Beschreibung und Gewicht)
@@ -507,7 +508,7 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
 
         # Pattern 1: NACH HS-Code - "| | | X,Y" (Eigenmasse (38) - HÖCHSTE PRIORITÄT!)
         weight_pattern1 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
-        weight_match1 = re.search(weight_pattern1, after_hs[:300])
+        weight_match1 = re.search(weight_pattern1, after_hs[:1200])  # ERWEITERT von 300 auf 1200!
         if weight_match1:
             weight_str = weight_match1.group(1).replace(',', '.')
             try:
@@ -521,7 +522,7 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
         # Pattern 2: NACH HS-Code - "| | X,Y" (Fallback Eigenmasse)
         if position['netWeight'] == 0.0:
             weight_pattern2 = r'\|\s*\|\s*(\d+[.,]\d+)'
-            weight_match2 = re.search(weight_pattern2, after_hs[:200])
+            weight_match2 = re.search(weight_pattern2, after_hs[:1000])  # ERWEITERT von 200 auf 1000!
             if weight_match2:
                 weight_str = weight_match2.group(1).replace(',', '.')
                 try:
@@ -564,7 +565,7 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
         # Pattern 1: 3-4 stelliger Code mit Pipes und Ländercodes
         # Beispiel: "| 100  |DE TR |" oder "| 1000 DE TR"
         procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
-        procedure_match = re.search(procedure_pattern, after_hs[:400])
+        procedure_match = re.search(procedure_pattern, after_hs[:1200])  # ERWEITERT von 400 auf 1200!
         if procedure_match:
             proc_code = procedure_match.group(1)
 
@@ -585,7 +586,7 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
         # Pattern 2: Fallback - Suche nach (37) Code
         if not position['procedure']:
             procedure_pattern2 = r'\(37\)[^\n]*?(\d{3,4})'
-            procedure_match2 = re.search(procedure_pattern2, after_hs[:500])
+            procedure_match2 = re.search(procedure_pattern2, after_hs[:1200])  # ERWEITERT von 500 auf 1200!
             if procedure_match2:
                 proc_code = procedure_match2.group(1)
 
