@@ -15,11 +15,23 @@ interface Position {
   currency: string | null;
 }
 
+interface Address {
+  name?: string;
+  address?: string;
+  zip?: string;
+  city?: string;
+  country?: string;
+}
+
 interface Shipment {
   id: string;
   mrn: string | null;
   documentType: string | null;
   procedureType: string | null;
+  commonSender: Address | null;
+  commonReceiver: Address | null;
+  commonOriginCountry: string | null;
+  commonDestCountry: string | null;
   totalPackages: number | null;
   totalGrossWeight: number | null;
   totalNetWeight: number | null;
@@ -74,6 +86,19 @@ export default function OcrDocumentCard({
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatAddress = (address: Address | null) => {
+    if (!address) return '-';
+    const parts = [];
+    if (address.name) parts.push(address.name);
+    if (address.address) parts.push(address.address);
+    if (address.zip || address.city) {
+      const cityParts = [address.zip, address.city].filter(Boolean);
+      parts.push(cityParts.join(' '));
+    }
+    if (address.country) parts.push(address.country);
+    return parts.join(', ') || '-';
   };
 
   const toggleShipment = (shipmentId: string) => {
@@ -257,6 +282,65 @@ export default function OcrDocumentCard({
                 {/* Positions (Expanded) */}
                 {isExpanded && (
                   <div className="border-t border-gray-200">
+                    {/* Sendungsdetails */}
+                    <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        {/* Linke Spalte */}
+                        <div className="space-y-2">
+                          <div>
+                            <span className="font-medium text-gray-700">Absender:</span>
+                            <p className="text-gray-900 mt-0.5">{formatAddress(shipment.commonSender)}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Versendungsland:</span>
+                            <p className="text-gray-900 mt-0.5">
+                              {shipment.commonOriginCountry || '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Rechte Spalte */}
+                        <div className="space-y-2">
+                          <div>
+                            <span className="font-medium text-gray-700">Empfänger:</span>
+                            <p className="text-gray-900 mt-0.5">{formatAddress(shipment.commonReceiver)}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-700">Bestimmungsland:</span>
+                            <p className="text-gray-900 mt-0.5">
+                              {shipment.commonDestCountry || '-'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Gewicht und Packstücke */}
+                        <div className="col-span-2 flex gap-6 pt-2 border-t border-gray-200">
+                          {shipment.totalPackages && (
+                            <div>
+                              <span className="font-medium text-gray-700">Packstücke:</span>
+                              <span className="ml-2 text-gray-900">{shipment.totalPackages}</span>
+                            </div>
+                          )}
+                          {shipment.totalGrossWeight && (
+                            <div>
+                              <span className="font-medium text-gray-700">Rohmasse:</span>
+                              <span className="ml-2 text-gray-900">
+                                {shipment.totalGrossWeight.toFixed(2)} kg
+                              </span>
+                            </div>
+                          )}
+                          {shipment.totalNetWeight && (
+                            <div>
+                              <span className="font-medium text-gray-700">Nettomasse:</span>
+                              <span className="ml-2 text-gray-900">
+                                {shipment.totalNetWeight.toFixed(2)} kg
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">

@@ -31,6 +31,8 @@ export async function GET(
         const shipmentsResult = await pool.query(
           `SELECT
             s.id, s.mrn, s."documentType", s."procedureType", s.verified,
+            s."commonSender", s."commonReceiver",
+            s."commonOriginCountry", s."commonDestCountry",
             s."totalPackages", s."totalGrossWeight", s."totalNetWeight",
             s."totalValue", s.currency
           FROM "Shipment" s
