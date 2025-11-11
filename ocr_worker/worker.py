@@ -12,6 +12,7 @@ from psycopg2.extras import Json
 from pdf2image import convert_from_path
 from PIL import Image
 from paddleocr import PaddleOCR
+import pdfplumber
 
 from config import celery_app, DATABASE_URL, PADDLE_USE_GPU, PADDLE_LANG, UPLOAD_FOLDER
 from extractors import (
@@ -128,9 +129,33 @@ def ocr_image(image: Image.Image) -> str:
     return '\n'.join(text_lines)
 
 
+def extract_text_from_pdf(file_path: str) -> str:
+    """
+    Extrahiert Text direkt aus einem PDF (ohne OCR)
+
+    Args:
+        file_path: Pfad zur PDF-Datei
+
+    Returns:
+        Extrahierter Text oder leerer String bei Fehler
+    """
+    try:
+        all_text = []
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    all_text.append(text)
+
+        return '\n\n=== NEUE SEITE ===\n\n'.join(all_text)
+    except Exception as e:
+        print(f"⚠️ PDF-Text-Extraktion fehlgeschlagen: {e}")
+        return ""
+
+
 def process_document(file_path: str, doc_id: str) -> Dict[str, Any]:
     """
-    Verarbeitet ein Dokument (PDF oder Bild) mit OCR
+    Verarbeitet ein Dokument (PDF oder Bild) mit direkter Text-Extraktion oder OCR
 
     Args:
         file_path: Pfad zur Datei
@@ -141,34 +166,51 @@ def process_document(file_path: str, doc_id: str) -> Dict[str, Any]:
     """
     update_ocr_document_status(doc_id, 'processing', 10)
 
-    # 1. PDF zu Bildern konvertieren (falls PDF)
-    images = []
+    full_text = ""
+
+    # 1. Versuche zuerst direkte Text-Extraktion für PDFs
     if file_path.lower().endswith('.pdf'):
-        print(f"Konvertiere PDF zu Bildern: {file_path}")
-        images = pdf_to_images(file_path)
-        update_ocr_document_status(doc_id, 'processing', 20)
-    else:
-        # Direktes Bild
-        images = [Image.open(file_path)]
-        update_ocr_document_status(doc_id, 'processing', 20)
+        print(f"📄 Versuche direkte PDF-Text-Extraktion: {file_path}")
+        full_text = extract_text_from_pdf(file_path)
 
-    if not images:
-        raise Exception("Keine Bilder zum Verarbeiten gefunden")
+        # Prüfe ob genug Text extrahiert wurde (mindestens 100 Zeichen)
+        if len(full_text.strip()) >= 100:
+            print(f"✅ PDF-Text-Extraktion erfolgreich! ({len(full_text)} Zeichen)")
+            print(f"📄 Erste 500 Zeichen:\n{full_text[:500]}")
+            update_ocr_document_status(doc_id, 'processing', 80)
+        else:
+            print(f"⚠️ Zu wenig Text extrahiert ({len(full_text)} Zeichen), verwende OCR...")
+            full_text = ""  # Reset für OCR
 
-    # 2. OCR auf allen Seiten ausführen
-    print(f"Führe OCR auf {len(images)} Seite(n) aus...")
-    all_text = []
-    page_progress = 60 / len(images)  # 20% -> 80% für OCR
+    # 2. Falls PDF-Extraktion fehlschlug oder es ein Bild ist, verwende OCR
+    if not full_text:
+        images = []
+        if file_path.lower().endswith('.pdf'):
+            print(f"Konvertiere PDF zu Bildern: {file_path}")
+            images = pdf_to_images(file_path)
+            update_ocr_document_status(doc_id, 'processing', 20)
+        else:
+            # Direktes Bild
+            images = [Image.open(file_path)]
+            update_ocr_document_status(doc_id, 'processing', 20)
 
-    for i, image in enumerate(images):
-        print(f"  Seite {i + 1}/{len(images)}")
-        page_text = ocr_image(image)
-        all_text.append(page_text)
+        if not images:
+            raise Exception("Keine Bilder zum Verarbeiten gefunden")
 
-        current_progress = 20 + int((i + 1) * page_progress)
-        update_ocr_document_status(doc_id, 'processing', current_progress)
+        # OCR auf allen Seiten ausführen
+        print(f"Führe OCR auf {len(images)} Seite(n) aus...")
+        all_text = []
+        page_progress = 60 / len(images)  # 20% -> 80% für OCR
 
-    full_text = '\n\n=== NEUE SEITE ===\n\n'.join(all_text)
+        for i, image in enumerate(images):
+            print(f"  Seite {i + 1}/{len(images)}")
+            page_text = ocr_image(image)
+            all_text.append(page_text)
+
+            current_progress = 20 + int((i + 1) * page_progress)
+            update_ocr_document_status(doc_id, 'processing', current_progress)
+
+        full_text = '\n\n=== NEUE SEITE ===\n\n'.join(all_text)
 
     # DEBUG: OCR-Text speichern für Debugging
     debug_file = os.path.join(UPLOAD_FOLDER, f'ocr_debug_{doc_id}.txt')
