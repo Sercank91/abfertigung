@@ -66,15 +66,24 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         # Suche nach Straße (enthält "Str" oder endet mit Nummer)
         for line in lines[1:]:
             line = line.strip()
+            # Bereinige OCR-Artefakte
+            line = re.sub(r'^\|\s*<\s*\|\s*', '', line)  # Entferne "| < |"
+            line = re.sub(r'^\|\s*', '', line)  # Entferne "|"
+
             if 'str' in line.lower() or 'straße' in line.lower() or 'strasse' in line.lower():
                 sender['address'] = line
                 break
 
-        # Suche nach PLZ + Stadt
+        # Suche nach PLZ + Stadt im gesamten Block
         for line in lines:
-            zip_city_match = re.search(r'\b(\d{5})\s+([A-Za-zäöüÄÖÜß\-]+)', line)
+            # OCR verwechselt manchmal 5 mit 9, 1 mit I, etc.
+            zip_city_match = re.search(r'\b([59]\d{4})\s+([A-Za-zäöüÄÖÜß\-]+)', line)
             if zip_city_match:
-                sender['zip'] = zip_city_match.group(1)
+                zip_code = zip_city_match.group(1)
+                # Korrigiere häufige OCR-Fehler: 91465 → 51465
+                if zip_code.startswith('9'):
+                    zip_code = '5' + zip_code[1:]
+                sender['zip'] = zip_code
                 sender['city'] = zip_city_match.group(2).strip()
                 break
 
@@ -101,40 +110,52 @@ def extract_receiver_smart(text: str) -> Optional[Dict[str, str]]:
         'country': None
     }
 
-    # Suche nach "Empfänger (8)" oder "Destinataire (8)"
-    pattern = r'(?:Empfänger|Destinataire)\s*\(8\)'
-    match = re.search(pattern, text, re.IGNORECASE)
+    # Fallback: Suche nach türkischer Adresse (Ankara, Istanbul, etc.)
+    turkish_cities = ['Ankara', 'Istanbul', 'İstanbul', 'Izmir', 'İzmir', 'Bursa', 'Antalya', 'Gaziantep']
 
-    if not match:
-        # Fallback: Suche nach türkischer Adresse (Ankara, Istanbul, etc.)
-        turkish_cities = ['Ankara', 'Istanbul', 'Izmir', 'Bursa', 'Antalya']
-        for city in turkish_cities:
-            if city in text:
-                # Finde Block um diese Stadt
-                city_pos = text.find(city)
-                block_start = max(0, city_pos - 200)
-                block = text[block_start:city_pos + 100]
+    for city in turkish_cities:
+        if city in text:
+            # Finde Block um diese Stadt (größerer Bereich)
+            city_pos = text.find(city)
+            block_start = max(0, city_pos - 300)
+            block_end = city_pos + 100
+            block = text[block_start:block_end]
 
-                # Suche PLZ vor Stadt
-                zip_match = re.search(r'\b(\d{5})\s+' + city, block)
-                if zip_match:
-                    receiver['zip'] = zip_match.group(1)
-                    receiver['city'] = city
-                    receiver['country'] = 'TR'
+            # Suche PLZ vor Stadt (0xxxx für Ankara, 3xxxx für İstanbul, etc.)
+            zip_match = re.search(r'\b(\d{5})\s+' + re.escape(city), block)
+            if zip_match:
+                receiver['zip'] = zip_match.group(1)
+                receiver['city'] = city
+                receiver['country'] = 'TR'
 
-                    # Suche nach Straße (Caddesi, Sokak)
-                    address_match = re.search(r'([A-Za-zığüşöçİĞÜŞÖÇ\s]+(?:Caddesi|Sokak|Bulvarı)[^0-9]*\d+[^A-Z]*)', block)
+                # Suche nach Straße (Caddesi, Sokak, Bulvarı)
+                # Pattern: "Name Caddesi Nummer" oder "Name Cad. Nummer"
+                address_patterns = [
+                    r'([A-Za-zığüşöçİĞÜŞÖÇ\s]+(?:Caddesi|Cad\.|Sokak|Sok\.|Bulvarı|Bulv\.)\s*\d+[/\d]*)',
+                    r'([A-Za-zığüşöçİĞÜŞÖÇ]+\s+Caddesi\s+\d+)',
+                ]
+
+                for pattern in address_patterns:
+                    address_match = re.search(pattern, block, re.IGNORECASE)
                     if address_match:
                         receiver['address'] = address_match.group(1).strip()
+                        break
 
-                    # Suche nach Firmenname (vor der Adresse)
-                    lines = block.split('\n')
-                    for i, line in enumerate(lines):
-                        if 'Ltd' in line or 'Sti' in line or 'A.S' in line or 'A.Ş' in line:
-                            receiver['name'] = line.strip()
+                # Suche nach Firmenname (enthält Ltd, Sti, A.S, A.Ş)
+                lines = block.split('\n')
+                for line in lines:
+                    # Bereinige Zeile
+                    line = re.sub(r'^\|\s*\(.*?\)\s*', '', line)  # Entferne "| (b)"
+                    line = line.strip()
+
+                    if any(x in line for x in ['Ltd', 'Sti', 'A.S', 'A.Ş', 'Teknik', 'Endüstri']):
+                        # Bereinige den Namen
+                        name = re.sub(r'^\s*E\s+', '', line)  # Entferne "E " Prefix
+                        if len(name) > 5:
+                            receiver['name'] = name
                             break
 
-                    break
+                break
 
     return receiver if receiver['city'] else None
 
@@ -188,29 +209,30 @@ def extract_total_gross_weight_smart(text: str) -> Optional[float]:
     """
     Extrahiert Rohmasse (kg) - sucht nach (35) oder größeren Gewichtsangaben
     """
-    # Suche nach "Rohmasse (kg) (35)" oder "(35)" gefolgt von Zahl
-    pattern1 = r'Rohmasse.*?\(35\)[^\d]*(\d+[.,]\d+)'
-    match = re.search(pattern1, text, re.IGNORECASE)
+    # Suche nach (35) gefolgt von Zahl
+    # Pattern: (35) dann irgendwo eine Zahl mit Komma/Punkt
+    pattern1 = r'\(35\)[^\d]{0,50}(\d+[.,]\d+)'
+    match = re.search(pattern1, text)
 
+    if match:
+        weight_str = match.group(1).replace(',', '.')
+        try:
+            weight = float(weight_str)
+            # Rohmasse ist normalerweise zwischen 0.1 und 10000 kg
+            if 0.1 < weight < 10000:
+                return weight
+        except ValueError:
+            pass
+
+    # Fallback: Suche nach "Rohmasse" Keyword
+    pattern2 = r'Rohmasse[^0-9]{0,30}(\d+[.,]\d+)'
+    match = re.search(pattern2, text, re.IGNORECASE)
     if match:
         weight_str = match.group(1).replace(',', '.')
         try:
             return float(weight_str)
         except ValueError:
             pass
-
-    # Fallback: Suche nach größeren Gewichten (> 10 kg)
-    pattern2 = r'\b(\d+[.,]\d{3})\s*(?:kg|KG)'
-    matches = re.findall(pattern2, text, re.IGNORECASE)
-
-    for weight_str in matches:
-        weight_str = weight_str.replace(',', '.')
-        try:
-            weight = float(weight_str)
-            if weight > 10:  # Totalgewicht ist meist > 10kg
-                return weight
-        except ValueError:
-            continue
 
     return None
 
