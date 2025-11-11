@@ -58,29 +58,40 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         if match:
             # Finde Position des Markers
             start = match.start()
-            # Nimm die nächsten 300 Zeichen (mehr für vollständige Adresse)
-            block = text[start:start+300]
+            # Nimm die nächsten 600 Zeichen (erweitert für [1] DEUTAWERKE)
+            block = text[start:start+600]
             break
 
     if block:
         lines = block.split('\n')
 
-        # Suche nach Firmenname in den ersten Zeilen
-        # Name ist meist in Großbuchstaben und 3-30 Zeichen lang
-        for line in lines[:5]:
-            line = line.strip()
-            # Entferne Präfixe
-            line = re.sub(r'^\[1\]\s*', '', line)
-            line = re.sub(r'^N\.DE\d+\s*', '', line)
-            line = re.sub(r'Versender.*?\(2\)\s*', '', line, flags=re.IGNORECASE)
-            line = re.sub(r'^\(2\)\s*', '', line)
-
-            # Prüfe ob Zeile wie ein Firmenname aussieht
-            if line and len(line) >= 3 and re.match(r'[A-ZÄÖÜ]', line):
-                # Nicht PLZ oder Ländercode
-                if not re.match(r'^\d{5}', line) and not re.match(r'^[A-Z]{2}$', line):
-                    sender['name'] = line.strip()
+        # PRIORITÄT 1: Suche nach [1] DEUTAWERKE (Vertreter-Marker)
+        for line in lines[:10]:
+            if '[1]' in line:
+                # Extrahiere alles nach [1]
+                name = re.sub(r'^.*\[1\]\s*', '', line).strip()
+                # Bereinige Suffix wie "| <"
+                name = re.sub(r'\s*\|\s*[<>].*$', '', name)
+                if name and len(name) >= 3 and not name.isdigit():
+                    sender['name'] = name
                     break
+
+        # PRIORITÄT 2: Falls nicht gefunden, suche nach Firmennamen in den ersten Zeilen
+        if not sender['name']:
+            for line in lines[:5]:
+                line = line.strip()
+                # Entferne Präfixe
+                line = re.sub(r'^\[1\]\s*', '', line)
+                line = re.sub(r'^N\.DE\d+\s*', '', line)
+                line = re.sub(r'Versender.*?\(2\)\s*', '', line, flags=re.IGNORECASE)
+                line = re.sub(r'^\(2\)\s*', '', line)
+
+                # Prüfe ob Zeile wie ein Firmenname aussieht
+                if line and len(line) >= 3 and re.match(r'[A-ZÄÖÜ]', line):
+                    # Nicht PLZ oder Ländercode
+                    if not re.match(r'^\d{5}', line) and not re.match(r'^[A-Z]{2}$', line):
+                        sender['name'] = line.strip()
+                        break
 
         # Bereinige alle Zeilen von OCR-Artefakten
         cleaned_lines = []
@@ -95,7 +106,13 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         # Suche nach Straße (enthält "Str" oder endet mit Nummer)
         for line in cleaned_lines[1:]:
             if 'str' in line.lower() or 'straße' in line.lower() or 'strasse' in line.lower():
-                sender['address'] = line
+                # Bereinige trailing garbage wie "Vordrucke (3)" etc.
+                address = line
+                # Entferne alles ab "Vordrucke", "Anm.", etc.
+                address = re.sub(r'\s+Vordrucke.*$', '', address, flags=re.IGNORECASE)
+                address = re.sub(r'\s+Anm\..*$', '', address, flags=re.IGNORECASE)
+                address = re.sub(r'\s*\|.*$', '', address)  # Entferne "|" und alles danach
+                sender['address'] = address.strip()
                 break
 
         # Suche nach PLZ + Stadt im gesamten Block
