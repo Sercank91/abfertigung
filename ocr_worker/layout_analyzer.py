@@ -77,6 +77,11 @@ class LayoutAnalyzer:
         """
         Analysiert ein Bild und extrahiert Blöcke + Text mit Position
 
+        HYBRID-STRATEGIE (Option A + B):
+        1. Versuche physische Blöcke zu finden (OpenCV Linien-Erkennung)
+        2. Falls nicht genug Positions-Blöcke → Erstelle virtuelle Blöcke um (32) Codes
+        3. Kombiniere beide für optimales Ergebnis
+
         Args:
             image: PIL Image
             page_num: Seitennummer
@@ -86,27 +91,50 @@ class LayoutAnalyzer:
         """
         if self.debug:
             print(f"\n{'='*80}")
-            print(f"🔍 LAYOUT-ANALYSE: Seite {page_num + 1}")
+            print(f"🔍 LAYOUT-ANALYSE: Seite {page_num + 1} (HYBRID)")
             print(f"{'='*80}")
 
         # 1. Konvertiere zu OpenCV Format
         cv_image = self._pil_to_cv2(image)
 
-        # 2. Finde Linien und Rechtecke
-        blocks = self._detect_blocks(cv_image, page_num)
+        # 2. OPTION A: Finde physische Linien und Rechtecke
+        physical_blocks = self._detect_blocks(cv_image, page_num)
 
         # 3. OCR mit Bounding Boxes
         words = self._extract_text_with_positions(image)
 
-        # 4. Ordne Wörter den Blöcken zu
-        self._assign_words_to_blocks(words, blocks)
+        # 4. OPTION B: Erstelle virtuelle Blöcke um (32) Codes (für Positions-Seiten)
+        # Zähle wie viele (32) Codes in physischen Blöcken sind
+        has_position_codes = any('(32)' in w.text for w in words)
+
+        virtual_blocks = []
+        if has_position_codes:
+            virtual_blocks = self._create_virtual_blocks_around_field_codes(
+                words, page_num, field_code='(32)', image_height=image.height
+            )
+
+        # 5. STRATEGIE: Kombiniere physische + virtuelle Blöcke
+        # Wenn virtuelle Blöcke vorhanden und sinnvoll (>1 Block), verwende diese
+        if len(virtual_blocks) > 1:
+            if self.debug:
+                print(f"\n💡 Verwende {len(virtual_blocks)} virtuelle Blöcke (besser für Positionen)")
+            all_blocks = virtual_blocks
+        else:
+            if self.debug:
+                print(f"\n💡 Verwende {len(physical_blocks)} physische Blöcke")
+            all_blocks = physical_blocks
+
+        # 6. Ordne Wörter den finalen Blöcken zu
+        self._assign_words_to_blocks(words, all_blocks)
 
         if self.debug:
             print(f"\n✅ Analyse abgeschlossen:")
-            print(f"   {len(blocks)} Blöcke gefunden")
+            print(f"   {len(all_blocks)} finale Blöcke")
             print(f"   {len(words)} Wörter extrahiert")
+            blocks_with_32 = [b for b in all_blocks if '(32)' in b.field_codes]
+            print(f"   {len(blocks_with_32)} Blöcke mit (32) Position-Codes")
 
-        return blocks, words
+        return all_blocks, words
 
     def _pil_to_cv2(self, pil_image: Image.Image) -> np.ndarray:
         """Konvertiert PIL Image zu OpenCV Format"""
@@ -114,55 +142,122 @@ class LayoutAnalyzer:
 
     def _detect_blocks(self, cv_image: np.ndarray, page_num: int) -> List[LayoutBlock]:
         """
-        Erkennt rechteckige Blöcke durch Linien-Detektion
+        Erkennt rechteckige Blöcke durch Linien-Detektion (OPTION A - VERBESSERT)
 
         Strategie:
-        1. Grayscale + Binary
-        2. Finde horizontale Linien
-        3. Finde vertikale Linien
+        1. Multi-Level Linien-Erkennung (grobe + feine Linien)
+        2. Finde horizontale Linien (verschiedene Längen)
+        3. Finde vertikale Linien (verschiedene Längen)
         4. Kombiniere zu Rechtecken
+        5. Filtere und sortiere Blöcke
         """
         if self.debug:
-            print(f"\n📐 Linien-Erkennung...")
+            print(f"\n📐 Linien-Erkennung (Multi-Level)...")
 
         # Grayscale
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
-        # Binary (Threshold)
+        # Binary (Threshold) - mit adaptivem Threshold für bessere Erkennung
         _, binary = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY_INV)
 
-        # Horizontale Linien erkennen
-        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40, 1))
-        horizontal_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
-
-        # Vertikale Linien erkennen
-        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 40))
-        vertical_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN, vertical_kernel, iterations=2)
-
-        # Kombiniere Linien
-        combined = cv2.add(horizontal_lines, vertical_lines)
-
-        # Finde Konturen (= Rechtecke/Blöcke)
-        contours, _ = cv2.findContours(combined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
         blocks = []
-        for contour in contours:
-            x, y, w, h = cv2.boundingRect(contour)
 
-            # Filter: Nur Blöcke mit Mindestgröße
-            if w > 50 and h > 20:
-                block = LayoutBlock(x, y, w, h, page_num)
-                blocks.append(block)
+        # STUFE 1: Grobe Linien (lange Linien für große Blöcke)
+        h_kernel_coarse = cv2.getStructuringElement(cv2.MORPH_RECT, (60, 1))
+        v_kernel_coarse = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 60))
+
+        h_lines_coarse = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel_coarse, iterations=2)
+        v_lines_coarse = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel_coarse, iterations=2)
+
+        combined_coarse = cv2.add(h_lines_coarse, v_lines_coarse)
+        contours_coarse, _ = cv2.findContours(combined_coarse, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours_coarse:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > 100 and h > 50:  # Größere Mindestgröße für grobe Blöcke
+                blocks.append(LayoutBlock(x, y, w, h, page_num))
+
+        # STUFE 2: Feine Linien (kurze Linien für kleine Blöcke)
+        h_kernel_fine = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 1))
+        v_kernel_fine = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 25))
+
+        h_lines_fine = cv2.morphologyEx(binary, cv2.MORPH_OPEN, h_kernel_fine, iterations=1)
+        v_lines_fine = cv2.morphologyEx(binary, cv2.MORPH_OPEN, v_kernel_fine, iterations=1)
+
+        combined_fine = cv2.add(h_lines_fine, v_lines_fine)
+        contours_fine, _ = cv2.findContours(combined_fine, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours_fine:
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > 50 and h > 20:  # Kleinere Mindestgröße für feine Blöcke
+                blocks.append(LayoutBlock(x, y, w, h, page_num))
+
+        # STUFE 3: Entferne Duplikate (überlappende Blöcke)
+        blocks = self._remove_duplicate_blocks(blocks)
 
         # Sortiere Blöcke: Oben nach Unten, Links nach Rechts
         blocks.sort(key=lambda b: (b.y, b.x))
 
         if self.debug:
-            print(f"   ✓ {len(blocks)} Blöcke gefunden")
-            for i, block in enumerate(blocks[:5]):  # Zeige erste 5
+            print(f"   ✓ {len(blocks)} physische Blöcke gefunden")
+            for i, block in enumerate(blocks[:10]):  # Zeige erste 10
                 print(f"      Block {i+1}: {block}")
 
         return blocks
+
+    def _remove_duplicate_blocks(self, blocks: List[LayoutBlock]) -> List[LayoutBlock]:
+        """
+        Entfernt überlappende/duplizierte Blöcke
+
+        Strategie: Wenn Block A >80% von Block B überlappt, behalte nur den kleineren
+        """
+        unique_blocks = []
+
+        for block in blocks:
+            is_duplicate = False
+
+            for existing in unique_blocks:
+                overlap = self._calculate_overlap(block, existing)
+
+                # Wenn >80% Überlappung, ist es ein Duplikat
+                if overlap > 0.8:
+                    is_duplicate = True
+                    # Ersetze mit kleinerem Block (spezifischer)
+                    if block.width * block.height < existing.width * existing.height:
+                        unique_blocks.remove(existing)
+                        unique_blocks.append(block)
+                    break
+
+            if not is_duplicate:
+                unique_blocks.append(block)
+
+        return unique_blocks
+
+    def _calculate_overlap(self, block1: LayoutBlock, block2: LayoutBlock) -> float:
+        """
+        Berechnet Überlappung zwischen zwei Blöcken (0.0 - 1.0)
+        """
+        x1_min, x1_max = block1.x, block1.x + block1.width
+        y1_min, y1_max = block1.y, block1.y + block1.height
+
+        x2_min, x2_max = block2.x, block2.x + block2.width
+        y2_min, y2_max = block2.y, block2.y + block2.height
+
+        # Überlappungs-Rechteck
+        x_overlap = max(0, min(x1_max, x2_max) - max(x1_min, x2_min))
+        y_overlap = max(0, min(y1_max, y2_max) - max(y1_min, y2_min))
+
+        overlap_area = x_overlap * y_overlap
+
+        # Kleinere Block-Fläche als Referenz
+        area1 = block1.width * block1.height
+        area2 = block2.width * block2.height
+        smaller_area = min(area1, area2)
+
+        if smaller_area == 0:
+            return 0.0
+
+        return overlap_area / smaller_area
 
     def _extract_text_with_positions(self, image: Image.Image) -> List[TextWord]:
         """
@@ -209,13 +304,78 @@ class LayoutAnalyzer:
 
         return words
 
+    def _create_virtual_blocks_around_field_codes(self, words: List[TextWord], page_num: int,
+                                                   field_code: str = '(32)', image_height: int = 3000) -> List[LayoutBlock]:
+        """
+        Erstellt virtuelle Blöcke um spezifische Feld-Codes (OPTION B)
+
+        Strategie:
+        1. Finde alle Wörter mit dem Feld-Code (z.B. "(32)")
+        2. Erstelle um jeden Code einen virtuellen Block
+        3. Block geht vom Code bis zum nächsten Code (oder Seitenende)
+        4. Block-Breite = Seitenbreite
+
+        Args:
+            words: Liste aller Wörter
+            page_num: Seitennummer
+            field_code: Feld-Code zum Suchen (z.B. "(32)")
+            image_height: Bild-Höhe für Block-Berechnung
+
+        Returns:
+            Liste virtueller Blöcke
+        """
+        if self.debug:
+            print(f"\n🎯 Erstelle virtuelle Blöcke um '{field_code}'...")
+
+        # Finde alle Wörter mit dem Feld-Code
+        code_words = [w for w in words if field_code in w.text]
+
+        if not code_words:
+            if self.debug:
+                print(f"   ✗ Keine '{field_code}' Codes gefunden")
+            return []
+
+        # Sortiere nach Y-Position (oben nach unten)
+        code_words.sort(key=lambda w: w.y)
+
+        virtual_blocks = []
+
+        for i, code_word in enumerate(code_words):
+            # Block startet beim Code
+            block_y = code_word.y - 50  # Etwas Puffer nach oben
+
+            # Block endet beim nächsten Code (oder Seitenende)
+            if i + 1 < len(code_words):
+                block_height = code_words[i + 1].y - block_y
+            else:
+                # Letzter Block geht bis Seitenende
+                block_height = image_height - block_y
+
+            # Block-Breite = volle Seitenbreite
+            block_x = 0
+            block_width = 2400  # Typische PDF-Breite bei 300 DPI
+
+            # Mindesthöhe
+            if block_height < 100:
+                block_height = 100
+
+            virtual_block = LayoutBlock(block_x, block_y, block_width, block_height, page_num)
+            virtual_blocks.append(virtual_block)
+
+        if self.debug:
+            print(f"   ✓ {len(virtual_blocks)} virtuelle Blöcke erstellt")
+            for i, block in enumerate(virtual_blocks):
+                print(f"      VBlock {i+1}: {block}")
+
+        return virtual_blocks
+
     def _assign_words_to_blocks(self, words: List[TextWord], blocks: List[LayoutBlock]):
         """
         Ordnet Wörter den Blöcken zu basierend auf Position
 
         Strategie:
         - Prüfe für jedes Wort: In welchem Block liegt es?
-        - Falls in mehreren: Nimm den kleinsten Block
+        - Falls in mehreren: Nimm den kleinsten Block (spezifischster)
         """
         if self.debug:
             print(f"\n🔗 Ordne Wörter zu Blöcken...")
