@@ -44,24 +44,43 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         'country': None
     }
 
-    # Suche nach [1] DEUTAWERKE Block
-    marker_pattern = r'\[1\]\s*([A-Z][A-Za-zäöüÄÖÜß\s]+)'
-    match = re.search(marker_pattern, text)
+    # Suche nach "Versender" oder "(2)" Block
+    # Pattern 1: Versender/Ausführer (2)
+    marker_patterns = [
+        r'Versender[^\n]{0,50}\(2\)',
+        r'\(2\)[^\n]{0,100}',
+        r'\[1\]\s*[A-Z]'
+    ]
 
-    if match:
-        # Finde Position des Markers
-        start = match.start()
-        # Nimm die nächsten 200 Zeichen
-        block = text[start:start+200]
+    block = None
+    for pattern in marker_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            # Finde Position des Markers
+            start = match.start()
+            # Nimm die nächsten 300 Zeichen (mehr für vollständige Adresse)
+            block = text[start:start+300]
+            break
+
+    if block:
         lines = block.split('\n')
 
-        # Erste Zeile = Name
-        if len(lines) > 0:
-            name_line = lines[0].strip()
-            # Entferne [1] und N.DE... Prefix
-            name_line = re.sub(r'\[1\]\s*', '', name_line)
-            name_line = re.sub(r'N\.DE\d+', '', name_line)
-            sender['name'] = name_line.strip()
+        # Suche nach Firmenname in den ersten Zeilen
+        # Name ist meist in Großbuchstaben und 3-30 Zeichen lang
+        for line in lines[:5]:
+            line = line.strip()
+            # Entferne Präfixe
+            line = re.sub(r'^\[1\]\s*', '', line)
+            line = re.sub(r'^N\.DE\d+\s*', '', line)
+            line = re.sub(r'Versender.*?\(2\)\s*', '', line, flags=re.IGNORECASE)
+            line = re.sub(r'^\(2\)\s*', '', line)
+
+            # Prüfe ob Zeile wie ein Firmenname aussieht
+            if line and len(line) >= 3 and re.match(r'[A-ZÄÖÜ]', line):
+                # Nicht PLZ oder Ländercode
+                if not re.match(r'^\d{5}', line) and not re.match(r'^[A-Z]{2}$', line):
+                    sender['name'] = line.strip()
+                    break
 
         # Bereinige alle Zeilen von OCR-Artefakten
         cleaned_lines = []
@@ -157,10 +176,14 @@ def extract_receiver_smart(text: str) -> Optional[Dict[str, str]]:
                         break
 
                 # Suche nach Firmenname (enthält Ltd, Sti, A.S, A.Ş, Teknik, Endüstri)
-                # Suche im gesamten Block ZUERST, bevor wir Zeile für Zeile suchen
+                # Erweiterte Patterns für türkische Firmennamen
                 name_patterns = [
-                    r'([\wığüşöçİĞÜŞÖÇ\s]+(?:Ltd|Sti|A\.S|A\.Ş)\.?(?:\s+Sti\.?)?)',
-                    r'((?:Endüstri|Teknik)[\wığüşöçİĞÜŞÖÇ\s]+(?:Ltd|Sti)\.?)',
+                    # Pattern 1: "Endüstri Teknik Ltd. Sti."
+                    r'([A-Za-zığüşöçİĞÜŞÖÇ]+\s+[A-Za-zığüşöçİĞÜŞÖÇ]+\s+Ltd\.?\s+Sti\.?)',
+                    # Pattern 2: Beliebige Wörter vor Ltd/Sti
+                    r'([A-Za-zığüşöçİĞÜŞÖÇ\s]{5,50}(?:Ltd|Sti|A\.S|A\.Ş)\.?(?:\s+Sti\.?)?)',
+                    # Pattern 3: Wörter mit Endüstri/Teknik
+                    r'([A-Za-zığüşöçİĞÜŞÖÇ\s]+(?:Endüstri|Teknik)[A-Za-zığüşöçİĞÜŞÖÇ\s]+)',
                 ]
 
                 for pattern in name_patterns:
@@ -169,10 +192,17 @@ def extract_receiver_smart(text: str) -> Optional[Dict[str, str]]:
                         name = name_match.group(1).strip()
                         # Bereinige OCR-Artefakte
                         name = re.sub(r'^\|\s*\(.*?\)\s*', '', name)  # Entferne "| (b)"
+                        name = re.sub(r'^\s*\(.*?\)\s*', '', name)  # Entferne "(8)"
                         name = re.sub(r'^\s*E\s+', '', name)  # Entferne "E " Prefix
                         name = re.sub(r'^\|\s*', '', name)  # Entferne "|"
+                        name = re.sub(r'\s+', ' ', name)  # Normalisiere Leerzeichen
+
+                        # Entferne trailing Adressteile
+                        name = re.sub(r'\s+Caddesi.*$', '', name)
+                        name = re.sub(r'\s+\d+.*$', '', name)
+
                         if len(name) > 5:
-                            receiver['name'] = name
+                            receiver['name'] = name.strip()
                             break
 
                 # Fallback: Suche Zeile für Zeile
@@ -242,47 +272,47 @@ def extract_hs_codes_smart(text: str) -> List[str]:
 
 def extract_total_gross_weight_smart(text: str) -> Optional[float]:
     """
-    Extrahiert Rohmasse (kg) - sucht nach (35) oder größeren Gewichtsangaben
+    Extrahiert Rohmasse (kg) - sucht nach "Rohmasse" Keyword
+    WICHTIG: Feldnummer (35) kann verwechselt werden!
+    Beispiel: "Rohmasse (kg) (35) 16,220" → Wir wollen 16,220, nicht 35!
     """
-    # Suche nach (35) gefolgt von Zahl
-    # Pattern: (35) dann irgendwo eine Zahl mit Komma/Punkt
-    # Erweitert für OCR-Fehler: manchmal steht Text dazwischen
-    pattern1 = r'\(35\)[^\d]{0,100}(\d+[.,]\d+)'
-    match = re.search(pattern1, text)
-
+    # Pattern 1: Suche nach "Rohmasse" und ignoriere (35)
+    # Beispiel: "Rohmasse (kg) (35) 16,220"
+    pattern1 = r'Rohmasse[^\d]*\(35\)[^\d]*(\d+[.,]\d+)'
+    match = re.search(pattern1, text, re.IGNORECASE)
     if match:
         weight_str = match.group(1).replace(',', '.')
         try:
             weight = float(weight_str)
-            # Rohmasse ist normalerweise zwischen 0.1 und 50000 kg (erweitert)
-            if 0.1 < weight < 50000:
+            # Rohmasse ist normalerweise zwischen 0.01 und 50000 kg
+            if 0.01 <= weight <= 50000:
                 return weight
         except ValueError:
             pass
 
-    # Pattern 2: Suche nach (35) und dann Zahl auch OHNE Dezimaltrenner
-    # z.B. "16220" für 16.220 kg (OCR entfernt manchmal Punkte/Kommas)
-    pattern2 = r'\(35\)[^\d]{0,100}(\d{4,6})\b'
-    match = re.search(pattern2, text)
-    if match:
-        weight_str = match.group(1)
-        try:
-            weight = float(weight_str)
-            # Wenn > 1000, dann ist es wahrscheinlich in Gramm -> konvertiere zu kg
-            if weight > 1000:
-                weight = weight / 1000.0
-            if 0.1 < weight < 50000:
-                return weight
-        except ValueError:
-            pass
-
-    # Fallback: Suche nach "Rohmasse" Keyword
-    pattern3 = r'Rohmasse[^0-9]{0,30}(\d+[.,]?\d*)'
-    match = re.search(pattern3, text, re.IGNORECASE)
+    # Pattern 2: Fallback ohne (35)
+    pattern2 = r'Rohmasse[^\d]+(\d+[.,]\d+)'
+    match = re.search(pattern2, text, re.IGNORECASE)
     if match:
         weight_str = match.group(1).replace(',', '.')
         try:
-            return float(weight_str)
+            weight = float(weight_str)
+            if 0.01 <= weight <= 50000:
+                return weight
+        except ValueError:
+            pass
+
+    # Pattern 3: Nur (35) verwenden wenn nichts anderes funktioniert
+    # ABER: Nehme die ZWEITE Zahl, nicht die erste (die könnte die Feldnummer sein)
+    pattern3 = r'\(35\)[^\d]*(\d+)[^\d]+(\d+[.,]\d+)'
+    match = re.search(pattern3, text)
+    if match:
+        # Nehme die zweite Zahl (group 2)
+        weight_str = match.group(2).replace(',', '.')
+        try:
+            weight = float(weight_str)
+            if 0.01 <= weight <= 50000:
+                return weight
         except ValueError:
             pass
 
@@ -417,35 +447,23 @@ def extract_total_packages(text: str) -> Optional[int]:
     """
     Extrahiert Packstücke insgesamt (6)
     """
-    # Suche nach (6) gefolgt von Zahl
-    # Aber: OCR kann mehrere Zahlen in einer Zeile haben (z.B. "| 8 1 CT")
-    # Wir wollen die kleinste sinnvolle Zahl nehmen
+    # WICHTIG: Pattern muss "Packst" oder "insgesamt" VERWENDEN
+    # Die Feldnummer (6) kann verwechselt werden!
+    # Beispiel: "Packst. insgesamt (6) 1" → Wir wollen 1, nicht 6!
 
-    # Finde den Block nach (6)
-    pattern_block = r'\(6\)([^\(]{0,50})'
-    match_block = re.search(pattern_block, text)
+    # Pattern 1: Suche nach "Packst" gefolgt von Zahl (nicht in Klammern)
+    pattern1 = r'Packst[^\d]*insgesamt[^\d]*\(6\)[^\d]*(\d+)'
+    match = re.search(pattern1, text, re.IGNORECASE)
+    if match:
+        try:
+            num = int(match.group(1))
+            if 1 <= num <= 100:
+                return num
+        except ValueError:
+            pass
 
-    if match_block:
-        block = match_block.group(1)
-        # Finde alle Zahlen in diesem Block
-        all_numbers = re.findall(r'\b(\d+)\b', block)
-
-        candidates = []
-        for num_str in all_numbers:
-            try:
-                num = int(num_str)
-                # Packstücke sind normalerweise 1-20
-                if 1 <= num <= 20:
-                    candidates.append(num)
-            except ValueError:
-                pass
-
-        # Nimm die kleinste Zahl (wahrscheinlich die richtige Packstückanzahl)
-        if candidates:
-            return min(candidates)
-
-    # Pattern 2: Suche nach "Packstücke insgesamt" Text
-    pattern2 = r'Packst.*?insgesamt[^\d]*(\d+)'
+    # Pattern 2: Fallback - suche "Packst" und dann erste kleine Zahl
+    pattern2 = r'Packst[^\d]+(\d+)'
     match = re.search(pattern2, text, re.IGNORECASE)
     if match:
         try:
