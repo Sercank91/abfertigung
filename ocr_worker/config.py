@@ -5,6 +5,10 @@ Celery und Database Settings
 
 import os
 from celery import Celery
+from dotenv import load_dotenv
+
+# .env Datei laden
+load_dotenv()
 
 # Redis Connection
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
