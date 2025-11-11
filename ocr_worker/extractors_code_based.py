@@ -100,10 +100,10 @@ def extract_positions_code_based(text: str, debug: bool = True) -> List[Dict]:
             'currency': None
         }
 
-        # 1. POSITIONSNUMMER: Nach (32) kommt die Nummer
-        # Pattern: Nach "Art. No (32)" oder "(32)" kommt die Positionsnummer
-        pos_num_pattern = r'(?:Art\.\s*No\s*\(32\)|\(32\))\s*(\d+)'
-        pos_num_match = re.search(pos_num_pattern, block, re.IGNORECASE)
+        # 1. POSITIONSNUMMER: Nach (32) kommt die Nummer (kann in nächster Zeile sein)
+        # Pattern: Nach "Art. No (32)" in den nächsten 50 Zeichen eine Ziffer
+        pos_num_pattern = r'(?:Art\.\s*No\s*\(32\)|\(32\))[^\d]{0,50}?(\d+)'
+        pos_num_match = re.search(pos_num_pattern, block[:200], re.IGNORECASE | re.DOTALL)
         if pos_num_match:
             position['orderNumber'] = int(pos_num_match.group(1))
             if debug:
@@ -112,27 +112,30 @@ def extract_positions_code_based(text: str, debug: bool = True) -> List[Dict]:
             if debug:
                 print(f"⚠️  Positionsnummer: Nicht gefunden, verwende Index {i+1}")
 
-        # 2. WARENBESCHREIBUNG: Nach (31/2) oder "Désignation"
+        # 2. WARENBESCHREIBUNG: Nach (31/2) in den nächsten Zeilen
+        # Pattern: (31/2) gefolgt von Text (kann Zeilenumbrüche enthalten)
         desc_patterns = [
-            r'\(31/2\)\s*([A-Za-zÀ-ÿ\s\-]{5,100})',  # (31/2) gefolgt von Text
-            r'Désignation[^(]*?\(31/2\)\s*([A-Za-zÀ-ÿ\s\-]{5,100})',  # Mit "Désignation"
-            r'Warenbeschreibung[^(]*?\(31/2\)\s*([A-Za-zÀ-ÿ\s\-]{5,100})',  # Deutsch
+            r'\(31/2\)\s*\n?\s*\d+\s+[A-Z]+.*?\s+([A-Za-zÀ-ÿéèêëàâôûç\s\-]{5,100})',  # Mit Nummer davor
+            r'\(31/2\)[^\n]*\n\s*\d+\s+\w+\s+([A-Za-zÀ-ÿéèêëàâôûç\s\-]{5,100})',  # Nächste Zeile
+            r'\d+\s+CT\s+([A-Za-zÀ-ÿéèêëàâôûç\s\-]{5,100})',  # Nach "X CT"
+            r'\d+\s+COLIS\s+([A-Za-zÀ-ÿéèêëàâôûç\s\-]{5,100})',  # Nach "X COLIS"
         ]
 
         for pattern in desc_patterns:
-            desc_match = re.search(pattern, block, re.IGNORECASE)
+            desc_match = re.search(pattern, block[:400], re.IGNORECASE)
             if desc_match:
                 description = desc_match.group(1).strip()
                 # Bereinige OCR-Artefakte
                 description = re.sub(r'\s*\d{8}\s*$', '', description)
                 description = re.sub(r'\s+[A-Z]{2}\d+\s*$', '', description)
+                description = re.sub(r'^\s*[\|\-_]+\s*', '', description)  # Entferne Pipes/Striche
                 position['description'] = description[:200].strip()
                 if debug:
                     print(f"✓ Beschreibung: {position['description'][:80]}")
                 break
 
         if not position['description'] and debug:
-            print(f"✗ Beschreibung: Nicht gefunden (Pattern: '(31/2)')")
+            print(f"✗ Beschreibung: Nicht gefunden")
 
         # 3. HS-CODE: Nach (33) kommt der HS-Code
         # Pattern: (33) gefolgt von 8-stelliger Nummer
@@ -163,45 +166,59 @@ def extract_positions_code_based(text: str, debug: bool = True) -> List[Dict]:
                     print(f"✗ HS-Code: Nicht gefunden")
 
         # 4. BRUTTOGEWICHT: Nach (35) kommt Masse brute
-        # Pattern: (35) gefolgt von Zahl mit Komma/Punkt
-        gross_weight_pattern = r'\(35\)\s*(\d+[.,]\d+)'
-        gross_match = re.search(gross_weight_pattern, block)
-        if gross_match:
-            weight_str = gross_match.group(1).replace(',', '.')
-            try:
-                weight = float(weight_str)
-                if 0.01 <= weight <= 50000:
-                    position['grossWeight'] = weight
+        # Pattern: (35) gefolgt von Zahl (kann in nächster Zeile sein)
+        gross_weight_patterns = [
+            r'\(35\)\s*\n?\s*(\d+[.,]\d+)',  # Direkt oder nächste Zeile
+            r'Masse brute[^\d]*\(35\)[^\d]{0,50}?(\d+[.,]\d+)',  # Mit Label
+            r'\|\s*\-\-\-\s*\|\s*\-\-\-\s*(\d+[.,]\d+)',  # Vor dem Gewicht
+        ]
+
+        for pattern in gross_weight_patterns:
+            gross_match = re.search(pattern, block, re.IGNORECASE)
+            if gross_match:
+                weight_str = gross_match.group(1).replace(',', '.')
+                try:
+                    weight = float(weight_str)
+                    if 0.01 <= weight <= 50000:
+                        position['grossWeight'] = weight
+                        if debug:
+                            print(f"✓ Bruttogewicht: {weight} kg (aus Feld 35)")
+                        break
+                    else:
+                        if debug:
+                            print(f"✗ Bruttogewicht: {weight} kg außerhalb Bereich")
+                except ValueError:
                     if debug:
-                        print(f"✓ Bruttogewicht: {weight} kg (aus Feld 35)")
-                else:
-                    if debug:
-                        print(f"✗ Bruttogewicht: {weight} kg außerhalb Bereich")
-            except ValueError:
-                if debug:
-                    print(f"✗ Bruttogewicht: Konvertierungsfehler '{weight_str}'")
-        else:
-            if debug:
-                print(f"✗ Bruttogewicht: Nicht gefunden (Feld 35)")
+                        print(f"✗ Bruttogewicht: Konvertierungsfehler '{weight_str}'")
+
+        if position['grossWeight'] == 0.0 and debug:
+            print(f"✗ Bruttogewicht: Nicht gefunden (Feld 35)")
 
         # 5. NETTOGEWICHT: Nach (38) kommt Masse nette
-        net_weight_pattern = r'\(38\)\s*(\d+[.,]\d+)'
-        net_match = re.search(net_weight_pattern, block)
-        if net_match:
-            weight_str = net_match.group(1).replace(',', '.')
-            try:
-                weight = float(weight_str)
-                if 0.01 <= weight <= 50000:
-                    position['netWeight'] = weight
+        net_weight_patterns = [
+            r'\(38\)\s*\n?\s*(\d+[.,]\d+)',  # Direkt oder nächste Zeile
+            r'Masse nette[^\d]*\(38\)[^\d]{0,50}?(\d+[.,]\d+)',  # Mit Label
+        ]
+
+        for pattern in net_weight_patterns:
+            net_match = re.search(pattern, block, re.IGNORECASE)
+            if net_match:
+                weight_str = net_match.group(1).replace(',', '.')
+                try:
+                    weight = float(weight_str)
+                    if 0.01 <= weight <= 50000:
+                        position['netWeight'] = weight
+                        if debug:
+                            print(f"✓ Nettogewicht: {weight} kg (aus Feld 38)")
+                        break
+                    else:
+                        if debug:
+                            print(f"✗ Nettogewicht: {weight} kg außerhalb Bereich")
+                except ValueError:
                     if debug:
-                        print(f"✓ Nettogewicht: {weight} kg (aus Feld 38)")
-                else:
-                    if debug:
-                        print(f"✗ Nettogewicht: {weight} kg außerhalb Bereich")
-            except ValueError:
-                if debug:
-                    print(f"✗ Nettogewicht: Konvertierungsfehler '{weight_str}'")
-        else:
+                        print(f"✗ Nettogewicht: Konvertierungsfehler '{weight_str}'")
+
+        if position['netWeight'] == 0.0:
             # Fallback: Verwende Bruttogewicht
             if position['grossWeight'] > 0:
                 position['netWeight'] = position['grossWeight']
@@ -212,34 +229,41 @@ def extract_positions_code_based(text: str, debug: bool = True) -> List[Dict]:
                     print(f"✗ Nettogewicht: Nicht gefunden (Feld 38)")
 
         # 6. VERFAHREN: Nach (37) kommt Procedure Code
-        # Pattern: (37) gefolgt von 3-4 stelligem Code
-        procedure_pattern = r'\(37\)\s*(\d{2,4})'
-        proc_match = re.search(procedure_pattern, block)
-        if proc_match:
-            proc_code = proc_match.group(1)
+        # Pattern: (37) gefolgt von 2-4 stelligem Code (kann in nächster Zeile sein)
+        procedure_patterns = [
+            r'\(37\)\s*\n?\s*(\d{2,4})',  # Direkt oder nächste Zeile
+            r'Procédure[^\d]*\(37\)[^\d]{0,50}?(\d{2,4})',  # Mit Label (französisch)
+            r'Procedure[^\d]*\(37\)[^\d]{0,50}?(\d{2,4})',  # Mit Label (englisch)
+        ]
 
-            # Expandiere 2-stellig zu 4-stellig: 10 → 1000
-            if len(proc_code) == 2:
-                proc_code = proc_code + '00'
-            # Expandiere 3-stellig zu 4-stellig: 100 → 1000
-            elif len(proc_code) == 3:
-                proc_code = proc_code + '0'
+        for pattern in procedure_patterns:
+            proc_match = re.search(pattern, block, re.IGNORECASE)
+            if proc_match:
+                proc_code = proc_match.group(1)
 
-            position['procedure'] = proc_code
+                # Expandiere 2-stellig zu 4-stellig: 10 → 1000
+                if len(proc_code) == 2:
+                    proc_code = proc_code + '00'
+                # Expandiere 3-stellig zu 4-stellig: 100 → 1000
+                elif len(proc_code) == 3:
+                    proc_code = proc_code + '0'
 
-            # Klassifiziere Typ
-            if proc_code in ['1000', '1010', '1020', '1040']:
-                position['procedureType'] = 'Ausfuhr'
-            elif proc_code in ['3171', '3151']:
-                position['procedureType'] = 'Versand'
-            elif proc_code in ['4000', '4071']:
-                position['procedureType'] = 'Veredelung'
+                position['procedure'] = proc_code
 
-            if debug:
-                print(f"✓ Verfahren: {proc_code} ({position['procedureType'] or 'Unknown'}) (aus Feld 37)")
-        else:
-            if debug:
-                print(f"✗ Verfahren: Nicht gefunden (Feld 37)")
+                # Klassifiziere Typ
+                if proc_code in ['1000', '1010', '1020', '1040']:
+                    position['procedureType'] = 'Ausfuhr'
+                elif proc_code in ['3171', '3151']:
+                    position['procedureType'] = 'Versand'
+                elif proc_code in ['4000', '4071']:
+                    position['procedureType'] = 'Veredelung'
+
+                if debug:
+                    print(f"✓ Verfahren: {proc_code} ({position['procedureType'] or 'Unknown'}) (aus Feld 37)")
+                break
+
+        if not position['procedure'] and debug:
+            print(f"✗ Verfahren: Nicht gefunden (Feld 37)")
 
         positions.append(position)
 
