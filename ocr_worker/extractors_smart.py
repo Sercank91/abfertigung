@@ -44,23 +44,32 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         'country': None
     }
 
-    # Suche nach "Versender" oder "(2)" Block
-    # Pattern 1: Versender/Ausführer (2)
-    marker_patterns = [
-        r'Versender[^\n]{0,50}\(2\)',
-        r'\(2\)[^\n]{0,100}',
-        r'\[1\]\s*[A-Z]'
-    ]
+    # STRATEGIE: Priorisiere [1] Marker (Anmelder/Vertreter) über (2) Marker
+    # [1] steht oft im (14) Vertreter-Block und hat die korrekte Firmenadresse
 
     block = None
-    for pattern in marker_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            # Finde Position des Markers
-            start = match.start()
-            # Nimm die nächsten 600 Zeichen (erweitert für [1] DEUTAWERKE)
-            block = text[start:start+600]
-            break
+
+    # PRIORITÄT 1: Suche nach [1] im GESAMTEN Text
+    match = re.search(r'\[1\]\s*([A-ZÄÖÜ])', text)
+    if match:
+        start = match.start()
+        # Nimm Block um [1] herum: 100 vor, 500 nach
+        block_start = max(0, start - 100)
+        block = text[block_start:start+500]
+
+    # PRIORITÄT 2: Falls kein [1], suche nach (2) Versender Block
+    if not block:
+        marker_patterns = [
+            r'Versender[^\n]{0,50}\(2\)',
+            r'\(2\)[^\n]{0,100}',
+        ]
+
+        for pattern in marker_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                start = match.start()
+                block = text[start:start+400]
+                break
 
     if block:
         lines = block.split('\n')
