@@ -749,7 +749,10 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
         )}
 
         {activeTab === 'positionen' && (
-          <PositionenTab onNext={() => setActiveTab('zusammenfassung')} />
+          <PositionenTab
+            clearanceId={savedAnmNr || ''}
+            onNext={() => setActiveTab('zusammenfassung')}
+          />
         )}
 
         {activeTab === 'zusammenfassung' && (
