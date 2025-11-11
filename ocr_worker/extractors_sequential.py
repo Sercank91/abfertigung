@@ -143,12 +143,19 @@ def extract_positions_sequential(text: str, debug: bool = True) -> List[Dict]:
         # Sequenziell ALLE Felder extrahieren
 
         # 1. POSITIONSNUMMER aus (32)
-        pos_num = find_field_value(block, '(32)', 'number')
-        if pos_num:
+        # SPEZIAL: Die Positionsnummer steht oft am Zeilenanfang NACH dem "(32)" Header
+        # Beispiel FR: "Art. No (32) ...\n1 CT Générateurs"
+        # Ignoriere Zahlen in Klammern wie "(31/2)"
+        pos_num_pattern = r'(?:Art\.\s*No\s*\(32\)|\\(32\))[^\n]*\n\s*(\d+)\s+(?:CT|COLIS)'
+        pos_num_match = re.search(pos_num_pattern, block, re.IGNORECASE)
+        if pos_num_match:
+            pos_num = pos_num_match.group(1)
             position['orderNumber'] = int(pos_num)
             if debug:
-                print(f"✓ (32) Positionsnummer: {pos_num}")
+                print(f"✓ (32) Positionsnummer: {pos_num} (aus Zeilenanfang)")
         else:
+            # Fallback: Verwende Index
+            position['orderNumber'] = i + 1
             if debug:
                 print(f"⚠️  (32) Positionsnummer: Nicht gefunden, verwende {i+1}")
 
@@ -237,27 +244,41 @@ def extract_positions_sequential(text: str, debug: bool = True) -> List[Dict]:
                 if debug:
                     print(f"✗ (38) Nettogewicht: Nicht gefunden")
 
+        # VALIDIERUNG: Falls Nettogewicht > Bruttogewicht, tausche sie
+        # (OCR-Fehler oder Feld-Vertauschung)
+        if position['netWeight'] > 0 and position['grossWeight'] > 0:
+            if position['netWeight'] > position['grossWeight']:
+                if debug:
+                    print(f"⚠️  Gewichte vertauscht: Netto ({position['netWeight']}) > Brutto ({position['grossWeight']}), tausche!")
+                position['netWeight'], position['grossWeight'] = position['grossWeight'], position['netWeight']
+
         # 6. VERFAHREN aus (37)
         proc_code = find_field_value(block, '(37)', 'code')
         if proc_code:
-            # Expandiere zu 4-stellig
-            if len(proc_code) == 2:
-                proc_code = proc_code + '00'
-            elif len(proc_code) == 3:
-                proc_code = proc_code + '0'
+            # Filtere ungültige Codes (z.B. "35" von Feld 35)
+            # Gültige Verfahren beginnen mit 1, 3, 4 (nicht 2, 5, 6, 7, 8, 9)
+            if proc_code.startswith(('1', '31', '32', '40', '42', '51')):
+                # Expandiere zu 4-stellig
+                if len(proc_code) == 2:
+                    proc_code = proc_code + '00'
+                elif len(proc_code) == 3:
+                    proc_code = proc_code + '0'
 
-            position['procedure'] = proc_code
+                position['procedure'] = proc_code
 
-            # Klassifiziere
-            if proc_code in ['1000', '1010', '1020', '1040']:
-                position['procedureType'] = 'Ausfuhr'
-            elif proc_code in ['3171', '3151']:
-                position['procedureType'] = 'Versand'
-            elif proc_code in ['4000', '4071']:
-                position['procedureType'] = 'Veredelung'
+                # Klassifiziere
+                if proc_code in ['1000', '1010', '1020', '1040']:
+                    position['procedureType'] = 'Ausfuhr'
+                elif proc_code in ['3171', '3151']:
+                    position['procedureType'] = 'Versand'
+                elif proc_code in ['4000', '4071']:
+                    position['procedureType'] = 'Veredelung'
 
-            if debug:
-                print(f"✓ (37) Verfahren: {proc_code} ({position['procedureType'] or 'Unknown'})")
+                if debug:
+                    print(f"✓ (37) Verfahren: {proc_code} ({position['procedureType'] or 'Unknown'})")
+            else:
+                if debug:
+                    print(f"✗ (37) Verfahren: {proc_code} ungültig (wahrscheinlich Feld-Nummer)")
         else:
             if debug:
                 print(f"✗ (37) Verfahren: Nicht gefunden")
