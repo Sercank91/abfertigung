@@ -15,19 +15,17 @@ import pytesseract
 import fitz  # PyMuPDF
 
 from config import celery_app, DATABASE_URL, TESSERACT_CMD, TESSERACT_LANG, TESSERACT_CONFIG, UPLOAD_FOLDER
-from extractors import (
+from extractors_smart import (
     extract_mrn,
-    extract_procedure_codes,
-    classify_procedure_type,
-    extract_hs_codes,
-    extract_weights,
-    extract_packages,
-    extract_value_and_currency,
-    extract_invoice_numbers,
-    extract_address,
+    extract_sender_smart,
+    extract_receiver_smart,
+    extract_hs_codes_smart,
+    extract_total_gross_weight_smart,
+    extract_total_packages,
+    extract_countries_smart,
+    extract_positions_smart,
     detect_document_type,
-    parse_positions_table,
-    optimize_addresses
+    classify_procedure_type_smart
 )
 
 
@@ -216,58 +214,81 @@ def process_document(file_path: str, doc_id: str) -> Dict[str, Any]:
 
 def extract_data_from_text(text: str) -> Dict[str, Any]:
     """
-    Extrahiert strukturierte Daten aus OCR-Text
+    Extrahiert strukturierte Daten aus OCR-Text mit smarten Extraktoren
 
     Returns:
         Dict mit allen extrahierten Daten
     """
+    print("\n" + "="*60)
+    print("🔍 STARTE DATEN-EXTRAKTION MIT SMARTEN EXTRAKTOREN")
+    print("="*60)
+
     # Basis-Extraktion
     mrn = extract_mrn(text)
-    document_type = detect_document_type(text)
-    procedure_codes = extract_procedure_codes(text)
-    procedure_type = classify_procedure_type(procedure_codes)
+    print(f"✓ MRN: {mrn}")
 
-    # Adressen
-    sender = extract_address(text, marker='Sender:') or extract_address(text, marker='Consignor:')
-    receiver = extract_address(text, marker='Empfänger:') or extract_address(text, marker='Consignee:')
+    document_type = detect_document_type(text)
+    print(f"✓ Dokumenttyp: {document_type}")
+
+    # HS-Codes (benötigt für Positionen)
+    hs_codes = extract_hs_codes_smart(text)
+    print(f"✓ HS-Codes gefunden: {len(hs_codes)} -> {hs_codes}")
+
+    # Positionen mit HS-Codes
+    positions = extract_positions_smart(text, hs_codes)
+    print(f"✓ Positionen extrahiert: {len(positions)}")
+
+    # Procedure Type aus Positionen ableiten
+    procedure_type = None
+    if positions:
+        procedure_type = classify_procedure_type_smart(positions)
+    print(f"✓ Verfahrenstyp: {procedure_type}")
+
+    # Adressen (smart)
+    sender = extract_sender_smart(text)
+    print(f"✓ Absender: {sender.get('name') if sender else 'None'}")
+
+    receiver = extract_receiver_smart(text)
+    print(f"✓ Empfänger: {receiver.get('name') if receiver else 'None'}")
+
+    # Länder
+    origin_country, dest_country = extract_countries_smart(text)
+    print(f"✓ Länder: {origin_country} → {dest_country}")
 
     # Totals
-    brutto_weight, netto_weight = extract_weights(text)
-    total_packages = extract_packages(text)
-    total_value, currency = extract_value_and_currency(text)
-    invoice_numbers = extract_invoice_numbers(text)
+    total_gross_weight = extract_total_gross_weight_smart(text)
+    print(f"✓ Rohmasse: {total_gross_weight} kg")
 
-    # Positionen parsen (aus Tabelle)
-    positions = parse_positions_table(text)
+    total_packages = extract_total_packages(text)
+    print(f"✓ Packstücke: {total_packages}")
 
-    # Procedure Type für jede Position
-    for pos in positions:
-        if pos.get('procedure'):
-            pos_codes = [pos['procedure']]
-            pos['procedureType'] = classify_procedure_type(pos_codes)
+    # Nettomasse aus Positionen berechnen
+    total_net_weight = sum(pos.get('netWeight', 0) for pos in positions) if positions else None
+    if total_net_weight == 0:
+        total_net_weight = None
 
-    # Adressen optimieren (common vs individual)
-    common_sender, common_receiver, optimized_positions = optimize_addresses(positions)
-
-    # Falls keine Adressen aus Positionen, nutze die globalen
-    if not common_sender:
-        common_sender = sender
-    if not common_receiver:
-        common_receiver = receiver
+    print("="*60)
+    print(f"✅ EXTRAKTION ABGESCHLOSSEN")
+    print(f"   Positionen: {len(positions)}")
+    print(f"   Absender: {'✓' if sender else '✗'}")
+    print(f"   Empfänger: {'✓' if receiver else '✗'}")
+    print("="*60 + "\n")
 
     return {
         'mrn': mrn,
         'documentType': document_type,
         'procedureType': procedure_type,
-        'commonSender': common_sender,
-        'commonReceiver': common_receiver,
+        'commonSender': sender,
+        'commonReceiver': receiver,
+        'commonOriginCountry': origin_country,
+        'commonDestCountry': dest_country,
         'totalPackages': total_packages,
-        'totalGrossWeight': brutto_weight,
-        'totalNetWeight': netto_weight,
-        'totalValue': total_value,
-        'currency': currency,
-        'invoiceNumbers': invoice_numbers,
-        'positions': optimized_positions
+        'totalGrossWeight': total_gross_weight,
+        'totalNetWeight': total_net_weight,
+        'totalValue': None,  # Wird später implementiert
+        'currency': None,
+        'invoiceNumbers': [],
+        'positions': positions
     }
 
 
@@ -288,11 +309,11 @@ def save_shipment_to_db(doc_id: str, clearance_id: str, data: Dict[str, Any]) ->
         cur.execute('''
             INSERT INTO "Shipment" (
                 id, "ocrDocumentId", "clearanceId", mrn, "documentType", "procedureType",
-                "commonSender", "commonReceiver", "totalPackages", "totalGrossWeight",
-                "totalNetWeight", "totalValue", currency, "invoiceNumbers",
-                verified, "createdAt", "updatedAt"
+                "commonSender", "commonReceiver", "commonOriginCountry", "commonDestCountry",
+                "totalPackages", "totalGrossWeight", "totalNetWeight", "totalValue",
+                currency, "invoiceNumbers", verified, "createdAt", "updatedAt"
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
         ''', (
             shipment_id,
@@ -303,6 +324,8 @@ def save_shipment_to_db(doc_id: str, clearance_id: str, data: Dict[str, Any]) ->
             data.get('procedureType'),
             Json(data.get('commonSender')) if data.get('commonSender') else None,
             Json(data.get('commonReceiver')) if data.get('commonReceiver') else None,
+            data.get('commonOriginCountry'),
+            data.get('commonDestCountry'),
             data.get('totalPackages'),
             data.get('totalGrossWeight'),
             data.get('totalNetWeight'),
