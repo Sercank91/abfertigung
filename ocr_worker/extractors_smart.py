@@ -430,7 +430,7 @@ def extract_total_gross_weight_smart(text: str) -> Optional[float]:
     return None
 
 
-def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
+def extract_positions_smart(text: str, hs_codes: List[str], debug: bool = True) -> List[Dict]:
     """
     ROBUSTE Positions-Extraktion basierend auf Positionsnummern
 
@@ -450,6 +450,11 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
     - Mehrere Ausfuhren pro PDF
     - Positionen über mehrere Seiten verteilt
     """
+    if debug:
+        print("\n" + "="*80)
+        print("🔍 DEBUG: POSITIONS-EXTRAKTION GESTARTET")
+        print("="*80)
+
     positions = []
     positions_found = []
 
@@ -457,6 +462,7 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
 
     # Pattern 1: | N | N. N CT, (Position 1 Format - zwei Pipes)
     pattern1 = r'\|\s*(\d+)\s*\|\s*\d+\.\s*\d+[.,]?\d*\s*CT,'
+    pattern1_matches = []
     for match in re.finditer(pattern1, text):
         pos_num = int(match.group(1))
         if 1 <= pos_num <= 50:  # Maximal 50 Positionen
@@ -465,9 +471,14 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 'start': match.start(),
                 'pattern': '| N | N. CT,'
             })
+            pattern1_matches.append(pos_num)
+
+    if debug and pattern1_matches:
+        print(f"✓ Pattern 1 '| N | N. CT,': Gefunden: {pattern1_matches}")
 
     # Pattern 2: | N N.N CT, (Positionen 2, 3, etc. - ein Pipe)
     pattern2 = r'^\|\s*(\d+)\s+\d+[.,]?\d*\s*CT,'
+    pattern2_matches = []
     for match in re.finditer(pattern2, text, re.MULTILINE):
         pos_num = int(match.group(1))
         if 1 <= pos_num <= 50:
@@ -478,9 +489,14 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                     'start': match.start(),
                     'pattern': '| N N.N CT,'
                 })
+                pattern2_matches.append(pos_num)
+
+    if debug and pattern2_matches:
+        print(f"✓ Pattern 2 '| N N.N CT,': Gefunden: {pattern2_matches}")
 
     # Pattern 3: ^N N.N CT, (Fallback ohne Pipe am Zeilenanfang)
     pattern3 = r'^(\d+)\s+\d+[.,]?\d*\s*CT,'
+    pattern3_matches = []
     for match in re.finditer(pattern3, text, re.MULTILINE):
         pos_num = int(match.group(1))
         if 1 <= pos_num <= 50:
@@ -490,6 +506,18 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                     'start': match.start(),
                     'pattern': 'N N.N CT,'
                 })
+                pattern3_matches.append(pos_num)
+
+    if debug and pattern3_matches:
+        print(f"✓ Pattern 3 'N N.N CT,': Gefunden: {pattern3_matches}")
+
+    if debug:
+        print(f"\n📊 GESAMT: {len(positions_found)} Positionen gefunden")
+        if not positions_found:
+            print("⚠️  KEINE POSITIONEN GEFUNDEN!")
+            print("   Erste 500 Zeichen des Textes:")
+            print("   " + text[:500].replace('\n', '\n   '))
+        print("-"*80)
 
     # Sortiere nach Text-Position (nicht nach Positionsnummer!)
     # Wichtig für Block-Extraktion
@@ -508,6 +536,15 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             end = start + 2000
 
         block = text[start:end]
+
+        if debug:
+            print(f"\n{'='*80}")
+            print(f"📦 POSITION {pos_num} (Pattern: {pos_info['pattern']})")
+            print(f"{'='*80}")
+            print(f"Block-Länge: {len(block)} Zeichen")
+            print(f"Block-Vorschau (erste 200 Zeichen):")
+            print("   " + block[:200].replace('\n', '\n   '))
+            print("-"*80)
 
         position = {
             'orderNumber': pos_num,
@@ -531,6 +568,11 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             description = re.sub(r'\s*\d{8}\s*$', '', description)
             description = re.sub(r'\s+DE\d+\s*$', '', description)
             position['description'] = description[:200].strip()
+            if debug:
+                print(f"✓ Beschreibung: {position['description'][:80]}")
+        else:
+            if debug:
+                print(f"✗ Beschreibung: Nicht gefunden (Pattern: 'CT, ... XXXXXX Text')")
 
         # 2. HS-CODE: 8-stellige Nummer im Block
         hs_pattern = r'\b(\d{8})\b'
@@ -541,8 +583,18 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             if hs_code.startswith(('84', '85', '39', '72', '73', '87', '90', '94', '95',
                                    '40', '48', '70', '76', '82', '83', '86', '88', '89')):
                 position['hsCode'] = hs_code
+                if debug:
+                    print(f"✓ HS-Code: {hs_code}")
+            else:
+                if debug:
+                    print(f"✗ HS-Code: {hs_code} (verworfen, kein typischer HS-Code-Anfang)")
+        else:
+            if debug:
+                print(f"✗ HS-Code: Keine 8-stellige Nummer gefunden")
 
         # 3. GEWICHT: Multiple Patterns
+        weight_found = False
+
         # Pattern 1: | | | X,Y (höchste Priorität)
         weight_pattern1 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
         weight_match1 = re.search(weight_pattern1, block)
@@ -553,8 +605,15 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 if 0.01 <= weight <= 100:
                     position['netWeight'] = weight
                     position['grossWeight'] = weight
+                    weight_found = True
+                    if debug:
+                        print(f"✓ Gewicht: {weight} kg (Pattern: '| | | X,Y')")
+                else:
+                    if debug:
+                        print(f"✗ Gewicht: {weight} kg außerhalb Bereich 0.01-100 (Pattern: '| | | X,Y')")
             except ValueError:
-                pass
+                if debug:
+                    print(f"✗ Gewicht: Konvertierungsfehler '{weight_str}' (Pattern: '| | | X,Y')")
 
         # Pattern 2: | | X,Y (Fallback)
         if position['netWeight'] == 0.0:
@@ -567,8 +626,15 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                     if 0.01 <= weight <= 100:
                         position['netWeight'] = weight
                         position['grossWeight'] = weight
+                        weight_found = True
+                        if debug:
+                            print(f"✓ Gewicht: {weight} kg (Pattern: '| | X,Y')")
+                    else:
+                        if debug:
+                            print(f"✗ Gewicht: {weight} kg außerhalb Bereich (Pattern: '| | X,Y')")
                 except ValueError:
-                    pass
+                    if debug:
+                        print(f"✗ Gewicht: Konvertierungsfehler '{weight_str}' (Pattern: '| | X,Y')")
 
         # Pattern 3: | | | XXX (Ganzzahl - OCR-Fehler: Komma fehlt)
         # Beispiel: "| | | 276" = 2,76 kg (Komma wurde nicht erkannt)
@@ -583,16 +649,29 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                     if 0.01 <= weight <= 100:
                         position['netWeight'] = weight
                         position['grossWeight'] = weight
+                        weight_found = True
+                        if debug:
+                            print(f"✓ Gewicht: {weight} kg (Pattern: '| | | XXX' → X.XX, OCR-Korrektur)")
+                    else:
+                        if debug:
+                            print(f"✗ Gewicht: {weight} kg außerhalb Bereich (Pattern: '| | | XXX')")
                 except ValueError:
-                    pass
+                    if debug:
+                        print(f"✗ Gewicht: Konvertierungsfehler '{number}' (Pattern: '| | | XXX')")
+
+        if debug and not weight_found:
+            print(f"✗ Gewicht: NICHT GEFUNDEN - keines der Patterns matched")
 
         # 4. VERFAHREN: XXXX DE TR Pattern
         procedure_pattern = r'\|\s*(\d{3,4})\s+\|?\s*([A-Z]{2})\s+([A-Z]{2})'
         procedure_match = re.search(procedure_pattern, block)
         if procedure_match:
             proc_code = procedure_match.group(1)
+            country1 = procedure_match.group(2)
+            country2 = procedure_match.group(3)
 
             # Wenn 3-stellig, expandiere zu 4-stellig (100 → 1000)
+            original_code = proc_code
             if len(proc_code) == 3:
                 proc_code = proc_code + '0'
 
@@ -606,10 +685,25 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             elif proc_code in ['4000', '4071']:
                 position['procedureType'] = 'Veredelung'
 
+            if debug:
+                if len(original_code) == 3:
+                    print(f"✓ Verfahren: {original_code} → {proc_code} ({position['procedureType'] or 'Unknown'}) | {country1} → {country2}")
+                else:
+                    print(f"✓ Verfahren: {proc_code} ({position['procedureType'] or 'Unknown'}) | {country1} → {country2}")
+        else:
+            if debug:
+                print(f"✗ Verfahren: Nicht gefunden (Pattern: '| XXXX DE TR')")
+
         positions.append(position)
 
     # Sortiere final nach orderNumber
     positions.sort(key=lambda x: x['orderNumber'])
+
+    if debug:
+        print("\n" + "="*80)
+        print(f"✅ POSITIONS-EXTRAKTION ABGESCHLOSSEN")
+        print(f"   {len(positions)} Positionen erfolgreich extrahiert")
+        print("="*80 + "\n")
 
     return positions
 
