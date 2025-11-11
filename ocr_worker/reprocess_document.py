@@ -6,7 +6,7 @@ Verarbeitet ein vorhandenes OCR-Dokument neu
 import sys
 import psycopg2
 
-DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/abfertigung?client_encoding=utf8'
+DATABASE_URL = 'postgresql://postgres:Manisali45!*@localhost:5432/abfertigung?client_encoding=utf8'
 
 def main():
     try:
