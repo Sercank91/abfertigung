@@ -11,6 +11,10 @@ from PIL import Image
 import pytesseract
 import fitz  # PyMuPDF
 
+# Tesseract-Pfad konfigurieren (Windows)
+if os.name == 'nt':  # Windows
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 from extractors_smart import (
     extract_mrn,
     extract_sender_smart,
