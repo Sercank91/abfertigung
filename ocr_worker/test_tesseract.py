@@ -4,9 +4,14 @@ Testet Tesseract OCR auf dem ersten Seiten-Bild
 """
 
 import sys
+import os
 from pdf2image import convert_from_path
 import pytesseract
 from PIL import Image
+
+# Tesseract-Pfad für Windows setzen
+if os.name == 'nt':  # Windows
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 pdf_path = r"D:\abfertigung\ocr_worker\uploads\5f46ef78-9066-4e3d-b6bb-11eeb60135bf.pdf"
 
