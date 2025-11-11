@@ -282,7 +282,7 @@ export default function OcrDocumentCard({
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {shipment.positions.map((position) => (
+                          {(shipment.positions || []).map((position) => (
                             <tr key={position.id} className="hover:bg-gray-50">
                               <td className="px-4 py-2 text-sm text-gray-900">
                                 {position.orderNumber}

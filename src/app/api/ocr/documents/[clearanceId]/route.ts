@@ -31,21 +31,40 @@ export async function GET(
         const shipmentsResult = await pool.query(
           `SELECT
             s.id, s.mrn, s."documentType", s."procedureType", s.verified,
-            COUNT(p.id) as "positionCount"
+            s."totalPackages", s."totalGrossWeight", s."totalNetWeight",
+            s."totalValue", s.currency
           FROM "Shipment" s
-          LEFT JOIN "ShipmentPosition" p ON p."shipmentId" = s.id
           WHERE s."ocrDocumentId" = $1
-          GROUP BY s.id`,
+          ORDER BY s."createdAt" ASC`,
           [doc.id]
+        );
+
+        // Für jedes Shipment die Positionen laden
+        const shipments = await Promise.all(
+          shipmentsResult.rows.map(async (shipment) => {
+            const positionsResult = await pool.query(
+              `SELECT
+                p.id, p."orderNumber", p."hsCode", p.description,
+                p."netWeight", p."grossWeight", p.procedure, p."procedureType",
+                p.value, p.currency, p."invoiceNumber"
+              FROM "ShipmentPosition" p
+              WHERE p."shipmentId" = $1
+              ORDER BY p."orderNumber" ASC`,
+              [shipment.id]
+            );
+
+            return {
+              ...shipment,
+              positionCount: positionsResult.rows.length,
+              positions: positionsResult.rows,
+            };
+          })
         );
 
         return {
           ...doc,
           shipmentCount: shipmentsResult.rows.length,
-          shipments: shipmentsResult.rows.map((s) => ({
-            ...s,
-            positionCount: parseInt(s.positionCount, 10),
-          })),
+          shipments,
         };
       })
     );
