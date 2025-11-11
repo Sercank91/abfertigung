@@ -1,6 +1,6 @@
 """
 OCR Worker - Hauptlogik
-Verarbeitet PDFs/Bilder mit PaddleOCR und speichert Ergebnisse in PostgreSQL
+Verarbeitet PDFs/Bilder mit Tesseract OCR und speichert Ergebnisse in PostgreSQL
 """
 
 import os
@@ -11,10 +11,10 @@ import psycopg2
 from psycopg2.extras import Json
 from pdf2image import convert_from_path
 from PIL import Image
-from paddleocr import PaddleOCR
-import pdfplumber
+import pytesseract
+import fitz  # PyMuPDF
 
-from config import celery_app, DATABASE_URL, PADDLE_USE_GPU, PADDLE_LANG, UPLOAD_FOLDER
+from config import celery_app, DATABASE_URL, TESSERACT_CMD, TESSERACT_LANG, TESSERACT_CONFIG, UPLOAD_FOLDER
 from extractors import (
     extract_mrn,
     extract_procedure_codes,
@@ -31,22 +31,9 @@ from extractors import (
 )
 
 
-# PaddleOCR initialisieren (nur einmal beim Worker-Start)
-# WICHTIG: Cache wird zurückgesetzt, um Sprachänderung zu erzwingen
-ocr_engine = None
-
-
-def get_ocr_engine():
-    """Lazy loading von PaddleOCR"""
-    global ocr_engine
-    if ocr_engine is None:
-        # PaddleOCR 3.x - nur kompatible Parameter verwenden
-        # Verwende 'german' für deutsche Zolldokumente
-        ocr_engine = PaddleOCR(
-            use_angle_cls=True,
-            lang='german'
-        )
-    return ocr_engine
+# Tesseract OCR konfigurieren
+if os.name == 'nt':  # Windows
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
 
 def get_db_connection():
@@ -102,7 +89,7 @@ def pdf_to_images(pdf_path: str) -> List[Image.Image]:
 
 def ocr_image(image: Image.Image) -> str:
     """
-    Führt OCR auf einem Bild aus
+    Führt OCR auf einem Bild aus mit Tesseract
 
     Args:
         image: PIL Image
@@ -110,28 +97,22 @@ def ocr_image(image: Image.Image) -> str:
     Returns:
         Extrahierter Text
     """
-    ocr = get_ocr_engine()
-
-    # PaddleOCR erwartet Pfad oder numpy array
-    import numpy as np
-    img_array = np.array(image)
-
-    # PaddleOCR 3.x - ocr() ohne cls Argument
-    result = ocr.ocr(img_array)
-
-    # Text aus Ergebnis extrahieren
-    text_lines = []
-    if result and len(result) > 0:
-        for line in result[0]:
-            if line:
-                text_lines.append(line[1][0])  # [1][0] = erkannter Text
-
-    return '\n'.join(text_lines)
+    try:
+        # Tesseract OCR mit deutscher Sprache und Konfiguration
+        text = pytesseract.image_to_string(
+            image,
+            lang=TESSERACT_LANG,
+            config=TESSERACT_CONFIG
+        )
+        return text
+    except Exception as e:
+        print(f"⚠️ Tesseract OCR fehlgeschlagen: {e}")
+        return ""
 
 
 def extract_text_from_pdf(file_path: str) -> str:
     """
-    Extrahiert Text direkt aus einem PDF (ohne OCR)
+    Extrahiert Text direkt aus einem PDF mit PyMuPDF (ohne OCR)
 
     Args:
         file_path: Pfad zur PDF-Datei
@@ -141,12 +122,15 @@ def extract_text_from_pdf(file_path: str) -> str:
     """
     try:
         all_text = []
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    all_text.append(text)
+        doc = fitz.open(file_path)
 
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text()
+            if text and len(text.strip()) > 0:
+                all_text.append(text)
+
+        doc.close()
         return '\n\n=== NEUE SEITE ===\n\n'.join(all_text)
     except Exception as e:
         print(f"⚠️ PDF-Text-Extraktion fehlgeschlagen: {e}")
