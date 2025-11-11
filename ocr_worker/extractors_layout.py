@@ -201,30 +201,29 @@ class LayoutBasedExtractor:
             receiver_block = receiver_blocks[0]
             receiver_words = receiver_block.words
 
-            # Strategie: Sammle ALLE Wörter nach (8), überspringe nur "No" und die ID-Nummer
+            # Strategie: Sammle ALLE Wörter nach "Destinataire" oder "(8)", überspringe nur "No" und ID
             receiver_parts = []
-            found_field_8 = False
-            skip_count = 0
+            start_collecting = False
 
             for i, word in enumerate(receiver_words):
-                # Finde (8) Feld
-                if '(8)' in word.text:
-                    found_field_8 = True
+                # Start: Bei "Destinataire" oder "(8)"
+                if 'Destinataire' in word.text or 'TDestinataire' in word.text or '(8)' in word.text:
+                    start_collecting = True
                     continue
 
-                if found_field_8:
-                    # Überspringe "No" und die nächste Nummer (nur einmal am Anfang)
-                    if word.text == 'No' and skip_count == 0:
-                        skip_count = 1
-                        continue
-                    if skip_count == 1:
-                        # Das ist die ID-Nummer nach "No", überspringe
-                        skip_count = 2
-                        continue
-
-                    # Ab jetzt alle Wörter sammeln bis zum nächsten Feld-Code
-                    if '(' in word.text and ')' in word.text:
+                if start_collecting:
+                    # Stoppe bei nächstem Feld-Code (außer (8))
+                    if '(' in word.text and ')' in word.text and '(8)' not in word.text:
                         break
+
+                    # Überspringe "No" und die ID nach "No"
+                    if word.text == 'No':
+                        # Überspringe "No" und die nächste Nummer
+                        if i + 1 < len(receiver_words):
+                            continue
+                    elif i > 0 and receiver_words[i-1].text == 'No':
+                        # Das ist die ID nach "No", überspringe
+                        continue
 
                     receiver_parts.append(word.text)
 
