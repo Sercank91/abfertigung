@@ -45,6 +45,12 @@ def find_field_value(text: str, field_code: str, value_type: str = 'text') -> Op
 
     elif value_type == 'code':
         # Suche 2-4 stelligen Code
+        # SPEZIAL für Verfahrenscode: Oft mit Space wie "10 00" oder "31 71"
+        code_space_match = re.search(r'\b(\d{2})\s+(\d{2})', snippet)
+        if code_space_match:
+            return code_space_match.group(1) + code_space_match.group(2)
+
+        # Fallback: Normale 2-4 stellige Nummer
         code_match = re.search(r'(\d{2,4})\b', snippet)
         return code_match.group(1) if code_match else None
 
@@ -253,7 +259,17 @@ def extract_positions_sequential(text: str, debug: bool = True) -> List[Dict]:
                 position['netWeight'], position['grossWeight'] = position['grossWeight'], position['netWeight']
 
         # 6. VERFAHREN aus (37)
-        proc_code = find_field_value(block, '(37)', 'code')
+        # SPEZIAL: Verfahrenscode steht oft mehrere Zeilen unter "(37)" Header
+        # Suche in größerem Bereich (500 Zeichen)
+        proc_match = re.search(r'\(37\)', block)
+        proc_code = None
+        if proc_match:
+            snippet = block[proc_match.end():proc_match.end() + 500]
+            # Suche Pattern "XX XX" (mit Space)
+            code_space_match = re.search(r'\b(\d{2})\s+(\d{2})', snippet)
+            if code_space_match:
+                proc_code = code_space_match.group(1) + code_space_match.group(2)
+
         if proc_code:
             # Filtere ungültige Codes (z.B. "35" von Feld 35)
             # Gültige Verfahren beginnen mit 1, 3, 4 (nicht 2, 5, 6, 7, 8, 9)
