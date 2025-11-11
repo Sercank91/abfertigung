@@ -18,7 +18,7 @@ from extractors_smart import (
 )
 
 # Lade OCR-Debug-Text
-debug_file = r"D:\abfertigung\ocr_worker\uploads\ocr_debug_157d2770-e334-4292-b3d2-295f18abcd3f.txt"
+debug_file = "/home/user/abfertigung/ocr_worker/uploads/ocr_debug_test.txt"
 
 if os.path.exists(debug_file):
     with open(debug_file, 'r', encoding='utf-8') as f:

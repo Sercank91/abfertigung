@@ -63,35 +63,50 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
             name_line = re.sub(r'N\.DE\d+', '', name_line)
             sender['name'] = name_line.strip()
 
-        # Suche nach Straße (enthält "Str" oder endet mit Nummer)
-        for line in lines[1:]:
+        # Bereinige alle Zeilen von OCR-Artefakten
+        cleaned_lines = []
+        for line in lines:
             line = line.strip()
             # Bereinige OCR-Artefakte
             line = re.sub(r'^\|\s*<\s*\|\s*', '', line)  # Entferne "| < |"
             line = re.sub(r'^\|\s*', '', line)  # Entferne "|"
+            if line:
+                cleaned_lines.append(line)
 
+        # Suche nach Straße (enthält "Str" oder endet mit Nummer)
+        for line in cleaned_lines[1:]:
             if 'str' in line.lower() or 'straße' in line.lower() or 'strasse' in line.lower():
                 sender['address'] = line
                 break
 
         # Suche nach PLZ + Stadt im gesamten Block
-        for line in lines:
-            # OCR verwechselt manchmal 5 mit 9, 1 mit I, etc.
-            zip_city_match = re.search(r'\b([59]\d{4})\s+([A-Za-zäöüÄÖÜß\-]+)', line)
-            if zip_city_match:
-                zip_code = zip_city_match.group(1)
-                # Korrigiere häufige OCR-Fehler: 91465 → 51465
-                if zip_code.startswith('9'):
-                    zip_code = '5' + zip_code[1:]
-                sender['zip'] = zip_code
-                sender['city'] = zip_city_match.group(2).strip()
-                break
+        # Kombiniere alle bereinigten Zeilen
+        full_block = ' '.join(cleaned_lines)
 
-        # Suche nach Ländercode
-        for line in lines:
-            if re.match(r'^[A-Z]{2}$', line.strip()):
-                sender['country'] = line.strip()
-                break
+        # OCR verwechselt manchmal 5 mit 9, 1 mit I, etc.
+        # Suche auch nach Patterns mit Bindestrich: "Bergisch-Gladbach"
+        zip_city_match = re.search(r'\b([59]\d{4})\s+([A-Za-zäöüÄÖÜß][\w\-\s]+?)(?:\s+[A-Z]{2}\b|$)', full_block)
+        if zip_city_match:
+            zip_code = zip_city_match.group(1)
+            # Korrigiere häufige OCR-Fehler: 91465 → 51465
+            if zip_code.startswith('9'):
+                zip_code = '5' + zip_code[1:]
+            sender['zip'] = zip_code
+            city = zip_city_match.group(2).strip()
+            # Entferne trailing Ländercode falls vorhanden
+            city = re.sub(r'\s+[A-Z]{2}$', '', city).strip()
+            sender['city'] = city
+
+        # Suche nach Ländercode (auch im kombinierten Block)
+        country_match = re.search(r'\b([A-Z]{2})\s*$', full_block)
+        if country_match:
+            sender['country'] = country_match.group(1)
+        else:
+            # Fallback: Suche in bereinigten Zeilen
+            for line in cleaned_lines:
+                if re.match(r'^[A-Z]{2}$', line.strip()):
+                    sender['country'] = line.strip()
+                    break
 
     return sender if sender['name'] else None
 
@@ -115,10 +130,10 @@ def extract_receiver_smart(text: str) -> Optional[Dict[str, str]]:
 
     for city in turkish_cities:
         if city in text:
-            # Finde Block um diese Stadt (größerer Bereich)
+            # Finde Block um diese Stadt (größerer Bereich für Namen)
             city_pos = text.find(city)
-            block_start = max(0, city_pos - 300)
-            block_end = city_pos + 100
+            block_start = max(0, city_pos - 500)  # Erweitert für Namen
+            block_end = city_pos + 200
             block = text[block_start:block_end]
 
             # Suche PLZ vor Stadt (0xxxx für Ankara, 3xxxx für İstanbul, etc.)
@@ -141,19 +156,39 @@ def extract_receiver_smart(text: str) -> Optional[Dict[str, str]]:
                         receiver['address'] = address_match.group(1).strip()
                         break
 
-                # Suche nach Firmenname (enthält Ltd, Sti, A.S, A.Ş)
-                lines = block.split('\n')
-                for line in lines:
-                    # Bereinige Zeile
-                    line = re.sub(r'^\|\s*\(.*?\)\s*', '', line)  # Entferne "| (b)"
-                    line = line.strip()
+                # Suche nach Firmenname (enthält Ltd, Sti, A.S, A.Ş, Teknik, Endüstri)
+                # Suche im gesamten Block ZUERST, bevor wir Zeile für Zeile suchen
+                name_patterns = [
+                    r'([\wığüşöçİĞÜŞÖÇ\s]+(?:Ltd|Sti|A\.S|A\.Ş)\.?(?:\s+Sti\.?)?)',
+                    r'((?:Endüstri|Teknik)[\wığüşöçİĞÜŞÖÇ\s]+(?:Ltd|Sti)\.?)',
+                ]
 
-                    if any(x in line for x in ['Ltd', 'Sti', 'A.S', 'A.Ş', 'Teknik', 'Endüstri']):
-                        # Bereinige den Namen
-                        name = re.sub(r'^\s*E\s+', '', line)  # Entferne "E " Prefix
+                for pattern in name_patterns:
+                    name_match = re.search(pattern, block, re.IGNORECASE)
+                    if name_match:
+                        name = name_match.group(1).strip()
+                        # Bereinige OCR-Artefakte
+                        name = re.sub(r'^\|\s*\(.*?\)\s*', '', name)  # Entferne "| (b)"
+                        name = re.sub(r'^\s*E\s+', '', name)  # Entferne "E " Prefix
+                        name = re.sub(r'^\|\s*', '', name)  # Entferne "|"
                         if len(name) > 5:
                             receiver['name'] = name
                             break
+
+                # Fallback: Suche Zeile für Zeile
+                if not receiver['name']:
+                    lines = block.split('\n')
+                    for line in lines:
+                        # Bereinige Zeile
+                        line = re.sub(r'^\|\s*\(.*?\)\s*', '', line)  # Entferne "| (b)"
+                        line = line.strip()
+
+                        if any(x in line for x in ['Ltd', 'Sti', 'A.S', 'A.Ş', 'Teknik', 'Endüstri']):
+                            # Bereinige den Namen
+                            name = re.sub(r'^\s*E\s+', '', line)  # Entferne "E " Prefix
+                            if len(name) > 5:
+                                receiver['name'] = name
+                                break
 
                 break
 
@@ -211,22 +246,39 @@ def extract_total_gross_weight_smart(text: str) -> Optional[float]:
     """
     # Suche nach (35) gefolgt von Zahl
     # Pattern: (35) dann irgendwo eine Zahl mit Komma/Punkt
-    pattern1 = r'\(35\)[^\d]{0,50}(\d+[.,]\d+)'
+    # Erweitert für OCR-Fehler: manchmal steht Text dazwischen
+    pattern1 = r'\(35\)[^\d]{0,100}(\d+[.,]\d+)'
     match = re.search(pattern1, text)
 
     if match:
         weight_str = match.group(1).replace(',', '.')
         try:
             weight = float(weight_str)
-            # Rohmasse ist normalerweise zwischen 0.1 und 10000 kg
-            if 0.1 < weight < 10000:
+            # Rohmasse ist normalerweise zwischen 0.1 und 50000 kg (erweitert)
+            if 0.1 < weight < 50000:
+                return weight
+        except ValueError:
+            pass
+
+    # Pattern 2: Suche nach (35) und dann Zahl auch OHNE Dezimaltrenner
+    # z.B. "16220" für 16.220 kg (OCR entfernt manchmal Punkte/Kommas)
+    pattern2 = r'\(35\)[^\d]{0,100}(\d{4,6})\b'
+    match = re.search(pattern2, text)
+    if match:
+        weight_str = match.group(1)
+        try:
+            weight = float(weight_str)
+            # Wenn > 1000, dann ist es wahrscheinlich in Gramm -> konvertiere zu kg
+            if weight > 1000:
+                weight = weight / 1000.0
+            if 0.1 < weight < 50000:
                 return weight
         except ValueError:
             pass
 
     # Fallback: Suche nach "Rohmasse" Keyword
-    pattern2 = r'Rohmasse[^0-9]{0,30}(\d+[.,]\d+)'
-    match = re.search(pattern2, text, re.IGNORECASE)
+    pattern3 = r'Rohmasse[^0-9]{0,30}(\d+[.,]?\d*)'
+    match = re.search(pattern3, text, re.IGNORECASE)
     if match:
         weight_str = match.group(1).replace(',', '.')
         try:
@@ -259,10 +311,23 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 # Finde Position des HS-Codes
                 hs_pos = page.find(hs_code)
 
-                # Extrahiere Block um den HS-Code (±200 Zeichen)
-                block_start = max(0, hs_pos - 100)
-                block_end = min(len(page), hs_pos + 300)
+                # Extrahiere Block um den HS-Code
+                # Kleinerer Block: nur 50 Zeichen davor, 200 danach
+                # um Überlappungen mit anderen Positionen zu vermeiden
+                block_start = max(0, hs_pos - 50)
+                block_end = min(len(page), hs_pos + 200)
                 block = page[block_start:block_end]
+
+                # Stoppe bei nächstem HS-Code um Überlappung zu vermeiden
+                next_hs_pos = -1
+                for other_code in hs_codes:
+                    if other_code != hs_code:
+                        pos = block.find(other_code)
+                        if pos > 0 and (next_hs_pos == -1 or pos < next_hs_pos):
+                            next_hs_pos = pos
+
+                if next_hs_pos > 0:
+                    block = block[:next_hs_pos]
 
                 position = {
                     'orderNumber': len(positions) + 1,
@@ -291,20 +356,44 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                         if len(desc) > len(position['description']):
                             position['description'] = desc[:200]
 
-                # Suche nach Gewicht (kleinere Zahlen, meist < 20 kg für Positionen)
-                weight_pattern = r'\b(\d+[.,]\d{1,2})\b'
-                weight_matches = re.findall(weight_pattern, block)
+                # Suche nach Gewicht (kleinere Zahlen, meist < 50 kg für Positionen)
+                # Priorisiere Gewichte mit "kg" oder nahe bei Gewichts-Feldnummern
 
-                for weight_str in weight_matches:
-                    weight_str = weight_str.replace(',', '.')
+                # Pattern 1: Suche nach explizitem "kg" Keyword
+                weight_kg_pattern = r'(\d+[.,]\d{1,3})\s*kg'
+                weight_kg_match = re.search(weight_kg_pattern, block, re.IGNORECASE)
+                if weight_kg_match:
+                    weight_str = weight_kg_match.group(1).replace(',', '.')
                     try:
                         weight = float(weight_str)
-                        # Positionsgewichte sind meist < 50 kg
-                        if 0.1 < weight < 50:
+                        if 0.01 < weight < 100:  # Erweitert für größere Gewichte
                             position['netWeight'] = weight
-                            break
+                            position['grossWeight'] = weight
                     except ValueError:
-                        continue
+                        pass
+
+                # Pattern 2: Fallback - suche alle Zahlen mit Dezimalen
+                if position['netWeight'] == 0.0:
+                    weight_pattern = r'\b(\d+[.,]\d{1,3})\b'
+                    weight_matches = re.findall(weight_pattern, block)
+
+                    # Filtere HS-Codes und andere False Positives raus
+                    for weight_str in weight_matches:
+                        # Überspringe wenn es der HS-Code selbst ist
+                        if weight_str.replace(',', '.').replace('.', '') == hs_code.replace('.', ''):
+                            continue
+
+                        weight_str = weight_str.replace(',', '.')
+                        try:
+                            weight = float(weight_str)
+                            # Positionsgewichte sind meist zwischen 0.01 und 100 kg
+                            # Filtere typische False Positives: 84.xx, 85.xx (HS-Codes)
+                            if 0.01 <= weight < 100 and not (80 <= weight < 100):
+                                position['netWeight'] = weight
+                                position['grossWeight'] = weight
+                                break
+                        except ValueError:
+                            continue
 
                 # Suche nach Procedure Code (1000, 1010, etc.)
                 procedure_codes = ['1000', '1010', '1020', '1040', '3171', '3151', '4000', '4071']
@@ -329,23 +418,57 @@ def extract_total_packages(text: str) -> Optional[int]:
     Extrahiert Packstücke insgesamt (6)
     """
     # Suche nach (6) gefolgt von Zahl
-    pattern = r'\(6\)[^\d]*(\d+)'
-    match = re.search(pattern, text)
+    # Aber: OCR kann mehrere Zahlen in einer Zeile haben (z.B. "| 8 1 CT")
+    # Wir wollen die kleinste sinnvolle Zahl nehmen
 
-    if match:
-        try:
-            return int(match.group(1))
-        except ValueError:
-            pass
+    # Finde den Block nach (6)
+    pattern_block = r'\(6\)([^\(]{0,50})'
+    match_block = re.search(pattern_block, text)
 
-    # Fallback: Suche nach "Packstücke"
+    if match_block:
+        block = match_block.group(1)
+        # Finde alle Zahlen in diesem Block
+        all_numbers = re.findall(r'\b(\d+)\b', block)
+
+        candidates = []
+        for num_str in all_numbers:
+            try:
+                num = int(num_str)
+                # Packstücke sind normalerweise 1-20
+                if 1 <= num <= 20:
+                    candidates.append(num)
+            except ValueError:
+                pass
+
+        # Nimm die kleinste Zahl (wahrscheinlich die richtige Packstückanzahl)
+        if candidates:
+            return min(candidates)
+
+    # Pattern 2: Suche nach "Packstücke insgesamt" Text
     pattern2 = r'Packst.*?insgesamt[^\d]*(\d+)'
     match = re.search(pattern2, text, re.IGNORECASE)
     if match:
         try:
-            return int(match.group(1))
+            count = int(match.group(1))
+            if 1 <= count <= 100:
+                return count
         except ValueError:
             pass
+
+    # Pattern 3: Fallback - nimm die kleinste Zahl nach (6) im Bereich 1-10
+    pattern3 = r'\(6\)[^\d]*(\d+)'
+    matches = re.finditer(pattern3, text)
+    candidates = []
+    for m in matches:
+        try:
+            num = int(m.group(1))
+            if 1 <= num <= 10:
+                candidates.append(num)
+        except ValueError:
+            pass
+
+    if candidates:
+        return min(candidates)  # Nimm die kleinste Zahl
 
     return None
 
