@@ -38,10 +38,10 @@ def get_ocr_engine():
     """Lazy loading von PaddleOCR"""
     global ocr_engine
     if ocr_engine is None:
+        # PaddleOCR 3.x - nur kompatible Parameter verwenden
         ocr_engine = PaddleOCR(
             use_angle_cls=True,
-            lang=PADDLE_LANG,
-            use_gpu=PADDLE_USE_GPU
+            lang=PADDLE_LANG
         )
     return ocr_engine
 
