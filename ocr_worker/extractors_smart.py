@@ -148,9 +148,8 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
             city = zip_city_match.group(2).strip()
             # Entferne trailing Ländercode falls vorhanden
             city = re.sub(r'\s+[A-Z]{2,3}$', '', city).strip()
-            # Entferne leading OCR-Artefakte wie "Ww"
-            if len(city) > 2 and not city[0].isupper():
-                city = re.sub(r'^[A-Z][a-z]\s+', '', city)
+            # Entferne trailing OCR-Artefakte wie "Ww" (oft vor Ländercode)
+            city = re.sub(r'\s+[A-Z][a-z]$', '', city).strip()
             sender['city'] = city
 
         # Suche nach Ländercode (auch im kombinierten Block)
