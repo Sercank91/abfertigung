@@ -95,12 +95,13 @@ class LayoutBasedExtractor:
 
         return None
 
-    def extract_header_from_page(self, blocks: List[LayoutBlock]) -> Dict:
+    def extract_header_from_page(self, blocks: List[LayoutBlock], all_words: List = None) -> Dict:
         """
         Extrahiert Kopfdaten von Seite 1
 
         Args:
             blocks: Liste der Blöcke von Seite 1
+            all_words: Optional - alle Wörter von Seite 1 für MRN-Suche
 
         Returns:
             Dict mit: mrn, sender, receiver, totalGrossWeight, totalPackages
@@ -124,9 +125,9 @@ class LayoutBasedExtractor:
         # MRN ist oft rechts oben, kann außerhalb großer Blöcke sein
         # Pattern: 18 Zeichen wie "24FRD5340043964970"
 
-        # Strategie 1: Durchsuche alle Wörter einzeln
-        for block in blocks:
-            for word in block.words:
+        # Strategie 1: Durchsuche ALLE Wörter (auch außerhalb von Blöcken)
+        if all_words:
+            for word in all_words:
                 if len(word.text) >= 18:
                     # MRN Pattern: 2 Ziffern + 2 Buchstaben + 14 Zeichen
                     if re.match(r'^\d{2}[A-Z]{2}[A-Z0-9]{14,16}$', word.text):
@@ -134,10 +135,22 @@ class LayoutBasedExtractor:
                         if self.debug:
                             print(f"✓ MRN gefunden: {header['mrn']}")
                         break
-            if header['mrn']:
-                break
 
-        # Strategie 2: Suche im kombinierten Text
+        # Strategie 2: Durchsuche Wörter in Blöcken
+        if not header['mrn']:
+            for block in blocks:
+                for word in block.words:
+                    if len(word.text) >= 18:
+                        # MRN Pattern: 2 Ziffern + 2 Buchstaben + 14 Zeichen
+                        if re.match(r'^\d{2}[A-Z]{2}[A-Z0-9]{14,16}$', word.text):
+                            header['mrn'] = word.text[:18]  # Nimm erste 18 Zeichen
+                            if self.debug:
+                                print(f"✓ MRN gefunden (in Block): {header['mrn']}")
+                            break
+                if header['mrn']:
+                    break
+
+        # Strategie 3: Suche im kombinierten Text
         if not header['mrn']:
             all_text = ' '.join([block.get_text() for block in blocks])
             mrn_match = re.search(r'\b(\d{2}[A-Z]{2}[A-Z0-9]{14,16})\b', all_text)
@@ -287,6 +300,7 @@ class LayoutBasedExtractor:
             if '(32)' in word.text:
                 code_32_found = True
                 # Suche die nächsten 30 Wörter nach einer einzelnen Zahl (1-99)
+                # Die Positionsnummer steht normalerweise VOR "CT" oder "COLIS"
                 for j in range(i+1, min(i+30, len(block.words))):
                     next_word = block.words[j].text
                     # Ist es eine einzelne Zahl 1-99?
@@ -296,8 +310,13 @@ class LayoutBasedExtractor:
                             # Plausible Positionsnummer (1-99)
                             # Ignoriere offensichtlich falsche Zahlen wie 31, 32, 33, 35, 37, 38 (Feld-Nummern)
                             if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
-                                pos_number = num
-                                break
+                                # Prüfe ob direkt danach "CT" oder "COLIS" kommt (gutes Zeichen!)
+                                if j+1 < len(block.words) and block.words[j+1].text.upper() in ['CT', 'COLIS']:
+                                    pos_number = num
+                                    break
+                                # Oder nehme die erste plausible Zahl wenn nichts besseres gefunden
+                                elif not pos_number:
+                                    pos_number = num
                         except:
                             pass
                 if pos_number:
@@ -455,16 +474,18 @@ def test_layout_extractor(pdf_path: str):
 
     # Analysiere alle Seiten
     all_pages_blocks = []
+    all_pages_words = []
     for page_num, image in enumerate(images):
         blocks, words = analyzer.analyze_image(image, page_num)
         all_pages_blocks.append(blocks)
+        all_pages_words.append(words)
 
     # Extraktor
     extractor = LayoutBasedExtractor(debug=True)
 
-    # 1. Extrahiere Kopfdaten von Seite 1
+    # 1. Extrahiere Kopfdaten von Seite 1 (mit words für MRN-Suche)
     if len(all_pages_blocks) > 0:
-        header = extractor.extract_header_from_page(all_pages_blocks[0])
+        header = extractor.extract_header_from_page(all_pages_blocks[0], all_words=all_pages_words[0] if all_pages_words else [])
 
         print(f"\n{'='*80}")
         print(f"📋 KOPFDATEN")
