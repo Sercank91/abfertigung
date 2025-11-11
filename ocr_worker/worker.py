@@ -13,7 +13,7 @@ from pdf2image import convert_from_path
 from PIL import Image
 from paddleocr import PaddleOCR
 
-from config import celery_app, DATABASE_URL, PADDLE_USE_GPU, PADDLE_LANG
+from config import celery_app, DATABASE_URL, PADDLE_USE_GPU, PADDLE_LANG, UPLOAD_FOLDER
 from extractors import (
     extract_mrn,
     extract_procedure_codes,
