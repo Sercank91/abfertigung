@@ -15,19 +15,19 @@ import pytesseract
 import fitz  # PyMuPDF
 
 from config import celery_app, DATABASE_URL, TESSERACT_CMD, TESSERACT_LANG, TESSERACT_CONFIG, UPLOAD_FOLDER
+
+# ===== VERBESSERT: Nur noch _smart Extraktoren mit Code-Erkennung! =====
 from extractors_smart import (
     extract_mrn,
+    extract_sender_smart,              # ✅ Code (2)
+    extract_receiver_smart,             # ✅ Code (8)
     extract_hs_codes_smart,
+    extract_total_gross_weight_smart,   # ✅ Code (35)
+    extract_total_packages,             # ✅ Code (6)
+    extract_positions_smart,
     extract_countries_smart,
     detect_document_type,
     classify_procedure_type_smart
-)
-from extractors_simple import (
-    extract_sender_simple,
-    extract_receiver_simple,
-    extract_rohmasse_simple,
-    extract_packstucke_simple,
-    extract_positions_simple
 )
 
 
@@ -236,8 +236,8 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
     hs_codes = extract_hs_codes_smart(text)
     print(f"✓ HS-Codes gefunden: {len(hs_codes)} -> {hs_codes}")
 
-    # Positionen mit SIMPLEN Extraktoren
-    positions = extract_positions_simple(text, hs_codes)
+    # Positionen mit SMARTEN Code-Extraktoren
+    positions = extract_positions_smart(text, hs_codes)
     print(f"✓ Positionen extrahiert: {len(positions)}")
 
     # Procedure Type aus Positionen ableiten
@@ -246,14 +246,14 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
         procedure_type = classify_procedure_type_smart(positions)
     print(f"✓ Verfahrenstyp: {procedure_type}")
 
-    # Adressen mit SIMPLEN Extraktoren
-    sender = extract_sender_simple(text)
+    # Adressen mit SMARTEN Code-Extraktoren (Code 2 & 8)
+    sender = extract_sender_smart(text)
     print(f"✓ Absender: {sender.get('name') if sender else 'None'}")
     if sender:
         print(f"   - Straße: {sender.get('address')}")
         print(f"   - PLZ/Stadt: {sender.get('zip')} {sender.get('city')}")
 
-    receiver = extract_receiver_simple(text)
+    receiver = extract_receiver_smart(text)
     print(f"✓ Empfänger: {receiver.get('name') if receiver else 'None'}")
     if receiver:
         print(f"   - Straße: {receiver.get('address')}")
@@ -263,11 +263,11 @@ def extract_data_from_text(text: str) -> Dict[str, Any]:
     origin_country, dest_country = extract_countries_smart(text)
     print(f"✓ Länder: {origin_country} → {dest_country}")
 
-    # Totals mit SIMPLEN Extraktoren
-    total_gross_weight = extract_rohmasse_simple(text)
+    # Totals mit SMARTEN Code-Extraktoren (Code 35 & 6)
+    total_gross_weight = extract_total_gross_weight_smart(text)
     print(f"✓ Rohmasse: {total_gross_weight} kg")
 
-    total_packages = extract_packstucke_simple(text)
+    total_packages = extract_total_packages(text)
     print(f"✓ Packstücke: {total_packages}")
 
     # Nettomasse aus Positionen berechnen
