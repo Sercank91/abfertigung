@@ -49,22 +49,39 @@ async function sendCeleryTask(
 ): Promise<string> {
   const taskId = uuidv4();
 
-  const task: CeleryTask = {
-    id: taskId,
-    task: taskName,
+  // Celery Protocol v2 Message Format
+  const body = [
     args,
     kwargs,
-    retries: 0,
-    eta: null,
-    expires: null,
-  };
+    {
+      callbacks: null,
+      errbacks: null,
+      chain: null,
+      chord: null,
+    },
+  ];
 
-  // Celery Message Format
   const message = {
-    body: Buffer.from(JSON.stringify([args, kwargs, {}])).toString('base64'),
+    body: Buffer.from(JSON.stringify(body)).toString('base64'),
     'content-encoding': 'utf-8',
     'content-type': 'application/json',
-    headers: {},
+    headers: {
+      lang: 'py',
+      task: taskName,
+      id: taskId,
+      shadow: null,
+      eta: null,
+      expires: null,
+      group: null,
+      group_index: null,
+      retries: 0,
+      timelimit: [null, null],
+      root_id: taskId,
+      parent_id: null,
+      argsrepr: JSON.stringify(args),
+      kwargsrepr: JSON.stringify(kwargs),
+      origin: 'nextjs',
+    },
     properties: {
       correlation_id: taskId,
       reply_to: taskId,
