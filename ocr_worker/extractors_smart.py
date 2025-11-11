@@ -439,10 +439,12 @@ def extract_positions_smart(text: str, hs_codes: List[str], debug: bool = True) 
     2. Extrahiere jeden Positions-Block separat
     3. In jedem Block: Beschreibung, HS-Code, Gewicht, Verfahren
 
-    Unterstützt 3 verschiedene Positions-Patterns:
-    - Pattern 1: | N | N. N CT, (z.B. Position 1 mit zwei Pipes)
-    - Pattern 2: ^N N.N CT, (z.B. Position 2 ohne Pipe am Zeilenanfang)
-    - Pattern 3: | N N.N CT, (z.B. Position 3 mit einem Pipe)
+    Unterstützt 5 verschiedene Positions-Patterns:
+    - Pattern 1: | N | N. N CT, (z.B. Position 1 mit zwei Pipes - deutsches Format)
+    - Pattern 2: | N N.N CT, (z.B. Position 2, 3 mit einem Pipe - deutsches Format)
+    - Pattern 3: N N.N CT, (Fallback ohne Pipe - deutsches Format)
+    - Pattern 4: N CT N.N KG (französisches Format ohne Pipe)
+    - Pattern 5: | N CT N.N KG (französisches Format mit Pipe)
 
     Funktioniert für:
     - Deutsche, französische, belgische, niederländische Ausfuhren
@@ -510,6 +512,40 @@ def extract_positions_smart(text: str, hs_codes: List[str], debug: bool = True) 
 
     if debug and pattern3_matches:
         print(f"✓ Pattern 3 'N N.N CT,': Gefunden: {pattern3_matches}")
+
+    # Pattern 4: ^N CT N.N KG (Französisches Format - ohne Komma, mit KG)
+    pattern4 = r'^(\d+)\s+CT\s+\d+[.,]?\d*\s+KG'
+    pattern4_matches = []
+    for match in re.finditer(pattern4, text, re.MULTILINE):
+        pos_num = int(match.group(1))
+        if 1 <= pos_num <= 50:
+            if not any(p['number'] == pos_num for p in positions_found):
+                positions_found.append({
+                    'number': pos_num,
+                    'start': match.start(),
+                    'pattern': 'N CT N.N KG'
+                })
+                pattern4_matches.append(pos_num)
+
+    if debug and pattern4_matches:
+        print(f"✓ Pattern 4 'N CT N.N KG' (FR): Gefunden: {pattern4_matches}")
+
+    # Pattern 5: | N CT N.N KG (Französisches Format mit Pipe)
+    pattern5 = r'^\|\s*(\d+)\s+CT\s+\d+[.,]?\d*\s+KG'
+    pattern5_matches = []
+    for match in re.finditer(pattern5, text, re.MULTILINE):
+        pos_num = int(match.group(1))
+        if 1 <= pos_num <= 50:
+            if not any(p['number'] == pos_num for p in positions_found):
+                positions_found.append({
+                    'number': pos_num,
+                    'start': match.start(),
+                    'pattern': '| N CT N.N KG'
+                })
+                pattern5_matches.append(pos_num)
+
+    if debug and pattern5_matches:
+        print(f"✓ Pattern 5 '| N CT N.N KG' (FR): Gefunden: {pattern5_matches}")
 
     if debug:
         print(f"\n📊 GESAMT: {len(positions_found)} Positionen gefunden")
