@@ -128,28 +128,48 @@ def extract_sender_smart(text: str) -> Optional[Dict[str, str]]:
         full_block = ' '.join(cleaned_lines)
 
         # OCR verwechselt manchmal 5 mit 9, 1 mit I, etc.
+        # OCR fügt manchmal Ziffern hinzu: 151465 statt 51465
         # Suche auch nach Patterns mit Bindestrich: "Bergisch-Gladbach"
-        zip_city_match = re.search(r'\b([59]\d{4})\s+([A-Za-zäöüÄÖÜß][\w\-\s]+?)(?:\s+[A-Z]{2}\b|$)', full_block)
+
+        # Pattern 1: Suche nach 5-6 stelliger PLZ vor Stadtname
+        zip_city_match = re.search(r'\b(1?[59]\d{4})\s+([A-Za-zäöüÄÖÜß][\w\-\s]+?)(?:\s+[A-Z]{2,3}\b|$)', full_block)
         if zip_city_match:
             zip_code = zip_city_match.group(1)
-            # Korrigiere häufige OCR-Fehler: 91465 → 51465
-            if zip_code.startswith('9'):
+
+            # Korrigiere häufige OCR-Fehler:
+            # 151465 → 51465 (entferne führende 1 bei 6-stelligen PLZ)
+            if len(zip_code) == 6 and zip_code.startswith('1'):
+                zip_code = zip_code[1:]
+            # 91465 → 51465 (9 → 5 Verwechslung)
+            elif zip_code.startswith('9'):
                 zip_code = '5' + zip_code[1:]
+
             sender['zip'] = zip_code
             city = zip_city_match.group(2).strip()
             # Entferne trailing Ländercode falls vorhanden
-            city = re.sub(r'\s+[A-Z]{2}$', '', city).strip()
+            city = re.sub(r'\s+[A-Z]{2,3}$', '', city).strip()
+            # Entferne leading OCR-Artefakte wie "Ww"
+            if len(city) > 2 and not city[0].isupper():
+                city = re.sub(r'^[A-Z][a-z]\s+', '', city)
             sender['city'] = city
 
         # Suche nach Ländercode (auch im kombinierten Block)
-        country_match = re.search(r'\b([A-Z]{2})\s*$', full_block)
+        country_match = re.search(r'\b([A-Z]{2,3})\b', full_block)
         if country_match:
-            sender['country'] = country_match.group(1)
+            country = country_match.group(1)
+            # Korrigiere OCR-Fehler: IDE → DE
+            if country == 'IDE':
+                country = 'DE'
+            sender['country'] = country
         else:
             # Fallback: Suche in bereinigten Zeilen
             for line in cleaned_lines:
-                if re.match(r'^[A-Z]{2}$', line.strip()):
-                    sender['country'] = line.strip()
+                line_clean = line.strip()
+                if re.match(r'^[A-Z]{2,3}$', line_clean):
+                    country = line_clean
+                    if country == 'IDE':
+                        country = 'DE'
+                    sender['country'] = country
                     break
 
     return sender if sender['name'] else None
