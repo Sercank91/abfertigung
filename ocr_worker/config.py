@@ -36,11 +36,10 @@ celery_app.conf.update(
     worker_max_tasks_per_child=50,  # Worker neu starten nach 50 Tasks
 )
 
-# PaddleOCR Settings
-PADDLE_USE_GPU = False  # CPU-Modus (schneller Setup)
-PADDLE_LANG = 'german'  # Deutsch (für deutsche Zolldokumente)
-PADDLE_DET_DB_THRESH = 0.3  # Text Detection Threshold
-PADDLE_REC_CONF_THRESH = 0.5  # Recognition Confidence Threshold
+# Tesseract OCR Settings
+TESSERACT_CMD = r'C:\Program Files\Tesseract-OCR\tesseract.exe' if os.name == 'nt' else 'tesseract'
+TESSERACT_LANG = 'deu'  # Deutsch für deutsche Zolldokumente
+TESSERACT_CONFIG = r'--oem 3 --psm 6'  # LSTM OCR Engine, Uniform text block
 
 # File Upload Settings
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
