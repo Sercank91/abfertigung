@@ -501,12 +501,13 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 # Nimm längsten Match
                 position['description'] = max(fallback_matches, key=len)[:200].strip()
 
-        # 2. NETTOGEWICHT: Suche Pattern VOR UND NACH dem HS-Code
-        # Das Gewicht kann vor "CT" ODER nach dem HS-Code in einer eigenen Zeile stehen
+        # 2. NETTOGEWICHT: Suche Pattern NACH und VOR dem HS-Code
+        # WICHTIG: Eigenmasse (38) NACH HS-Code hat Priorität über CT-Wert VOR HS-Code
+        # Das "X.Y CT" ist oft nur die Anzahl Packstücke, nicht das echte Nettogewicht!
 
-        # Pattern 1: VOR HS-Code - "X.Y CT"
-        weight_pattern1 = r'(\d+[.,]\d+)\s*CT'
-        weight_match1 = re.search(weight_pattern1, before_hs[-200:], re.IGNORECASE)
+        # Pattern 1: NACH HS-Code - "| | | X,Y" (Eigenmasse (38) - HÖCHSTE PRIORITÄT!)
+        weight_pattern1 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
+        weight_match1 = re.search(weight_pattern1, after_hs[:300])
         if weight_match1:
             weight_str = weight_match1.group(1).replace(',', '.')
             try:
@@ -517,10 +518,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
             except ValueError:
                 pass
 
-        # Pattern 2: NACH HS-Code - "| | | X,Y" (Eigenmasse in eigener Zeile)
+        # Pattern 2: NACH HS-Code - "| | X,Y" (Fallback Eigenmasse)
         if position['netWeight'] == 0.0:
-            weight_pattern2 = r'\|\s*\|\s*\|\s*(\d+[.,]\d+)'
-            weight_match2 = re.search(weight_pattern2, after_hs[:300])
+            weight_pattern2 = r'\|\s*\|\s*(\d+[.,]\d+)'
+            weight_match2 = re.search(weight_pattern2, after_hs[:200])
             if weight_match2:
                 weight_str = weight_match2.group(1).replace(',', '.')
                 try:
@@ -531,10 +532,10 @@ def extract_positions_smart(text: str, hs_codes: List[str]) -> List[Dict]:
                 except ValueError:
                     pass
 
-        # Pattern 3: NACH HS-Code - "| | X,Y" (Fallback)
+        # Pattern 3: VOR HS-Code - "X.Y CT" (Nur als letzter Fallback)
         if position['netWeight'] == 0.0:
-            weight_pattern3 = r'\|\s*\|\s*(\d+[.,]\d+)'
-            weight_match3 = re.search(weight_pattern3, after_hs[:200])
+            weight_pattern3 = r'(\d+[.,]\d+)\s*CT'
+            weight_match3 = re.search(weight_pattern3, before_hs[-200:], re.IGNORECASE)
             if weight_match3:
                 weight_str = weight_match3.group(1).replace(',', '.')
                 try:
