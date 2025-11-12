@@ -196,59 +196,65 @@ class LayoutBasedExtractor:
                     print(f"✓ Versender: {header['sender'][:80]}...")
 
         # EMPFÄNGER (8) - VOLLSTÄNDIGE Adresse
-        # Problem: Firma kann in separatem Block vor (8) sein
-        # Lösung: Sammle aus ALLEN Wörtern auf Seite 1, die zum Empfänger gehören
+        # Strategie: Finde Block mit Empfänger-Merkmalen (ANKARA, TR, etc.)
         receiver_blocks = [b for b in blocks if '(8)' in b.field_codes]
-        if receiver_blocks or all_words:
-            # Strategie: Suche in allen Wörtern nach dem Empfänger-Bereich
-            receiver_parts = []
 
-            # Verwende alle Wörter der Seite, nicht nur Block-Wörter
-            search_words = all_words if all_words else (receiver_blocks[0].words if receiver_blocks else [])
-
-            if self.debug:
-                print(f"\n🔍 DEBUG Empfänger-Extraktion:")
-                print(f"   Durchsuche {len(search_words)} Wörter")
-
-            # Finde Start: "Destinataire" oder "(8)"
-            start_index = -1
-            for i, word in enumerate(search_words):
-                if 'Destinataire' in word.text or 'TDestinataire' in word.text or ('(8)' in word.text and i < len(search_words) - 5):
-                    start_index = i
+        # Finde zusätzlich Blöcke mit typischen Empfänger-Wörtern
+        if not receiver_blocks and blocks:
+            for block in blocks:
+                block_text = ' '.join([w.text for w in block.words])
+                if any(city in block_text.upper() for city in ['ANKARA', 'ISTANBUL', 'IZMIR', 'PARIS', 'LONDON', 'BERLIN']):
+                    receiver_blocks = [block]
                     if self.debug:
-                        print(f"   ✓ Start bei Index {i}: '{word.text}'")
+                        print(f"🔍 Empfänger-Block gefunden durch Stadt-Erkennung")
                     break
 
-            if start_index >= 0:
-                # Sammle alle Wörter ab Start bis zum nächsten Feld-Code
-                for i in range(start_index + 1, min(start_index + 50, len(search_words))):
-                    word = search_words[i]
+        if receiver_blocks:
+            receiver_block = receiver_blocks[0]
+            receiver_words = receiver_block.words
 
-                    # Stoppe bei nächstem Feld-Code (außer (8))
-                    if '(' in word.text and ')' in word.text and '(8)' not in word.text:
-                        if self.debug:
-                            print(f"   ⏹ Stoppe bei: '{word.text}'")
-                        break
+            if self.debug:
+                print(f"\n🔍 DEBUG Empfänger-Block:")
+                print(f"   Block hat {len(receiver_words)} Wörter")
+                print(f"   Alle Wörter: {[w.text for w in receiver_words]}")
 
-                    # Überspringe "No" und die ID
-                    if word.text == 'No':
-                        if self.debug:
-                            print(f"   ⊘ Überspringe 'No'")
-                        continue
+            # Sammle ALLE Wörter, überspringe nur Labels und IDs
+            receiver_parts = []
+            skip_next = False
 
-                    # Überspringe ID nach "No" (z.B. "ETRANGER", "TR123...")
-                    if i > 0 and search_words[i-1].text == 'No':
-                        if self.debug:
-                            print(f"   ⊘ Überspringe ID: '{word.text}'")
-                        continue
+            for i, word in enumerate(receiver_words):
+                if skip_next:
+                    skip_next = False
+                    continue
 
-                    # Überspringe reine Feldbezeichnungen
-                    if word.text in ['Destinataire', 'TDestinataire']:
-                        continue
-
+                # Überspringe Feld-Codes
+                if re.match(r'^\(\d+\)$', word.text):
                     if self.debug:
-                        print(f"   ✓ Sammle: '{word.text}'")
-                    receiver_parts.append(word.text)
+                        print(f"   ⊘ Überspringe Feld-Code: '{word.text}'")
+                    continue
+
+                # Überspringe Labels
+                if word.text in ['Destinataire', 'TDestinataire', 'Consignee', 'Receiver']:
+                    if self.debug:
+                        print(f"   ⊘ Überspringe Label: '{word.text}'")
+                    continue
+
+                # Überspringe "No" und die nächste ID
+                if word.text == 'No':
+                    skip_next = True
+                    if self.debug:
+                        print(f"   ⊘ Überspringe 'No' und nächstes Wort")
+                    continue
+
+                # Überspringe typische französische Feld-Bezeichnungen
+                if word.text in ['Numéro', 'de', 'reference', 'référence']:
+                    if self.debug:
+                        print(f"   ⊘ Überspringe Bezeichnung: '{word.text}'")
+                    continue
+
+                if self.debug:
+                    print(f"   ✓ Sammle: '{word.text}'")
+                receiver_parts.append(word.text)
 
             if self.debug:
                 print(f"   Gesammelte Teile: {len(receiver_parts)}")
@@ -316,72 +322,64 @@ class LayoutBasedExtractor:
         }
 
         # 1. POSITIONSNUMMER aus (32)
-        # WICHTIG: Positionsnummer kann VOR oder NACH (32) stehen!
-        # Französisch: "1 CT ... (32)" oder "(32) ... 1 CT"
-        # Patterns: "1 CT", "2 COLIS", etc.
+        # Die Positionsnummer steht oft ganz am ANFANG des Blocks!
+        # Französisch oft: "1 | (32) ..." oder am Block-Start
 
-        # Finde (32) in den Wörtern
-        code_32_found = False
         pos_number = None
         candidates = []  # Sammle alle Kandidaten
 
         if self.debug:
             print(f"\n🔍 DEBUG Positionsnummer:")
             print(f"   Block hat {len(block.words)} Wörter")
+            print(f"   Erste 20 Wörter: {[block.words[k].text for k in range(min(20, len(block.words)))]}")
 
+        # STRATEGIE 1: Suche am ANFANG des Blocks (erste 15 Wörter)
+        # Die echte Positionsnummer ist oft das ERSTE plausible Zahl-Wort
+        for i in range(min(15, len(block.words))):
+            word = block.words[i].text
+            if re.match(r'^(\d{1,2})$', word):
+                try:
+                    num = int(word)
+                    if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
+                        # Nicht "1" akzeptieren wenn es direkt vor "CT"/"COLIS" steht (= Packstückanzahl!)
+                        if i+1 < len(block.words) and block.words[i+1].text.upper() in ['CT', 'COLIS']:
+                            if self.debug:
+                                print(f"   ⊘ Überspringe {num} - ist Packstückanzahl vor '{block.words[i+1].text}'")
+                            continue
+
+                        candidates.append((num, 300 - i))  # Höchste Priorität für frühe Position
+                        if self.debug:
+                            print(f"   ✓✓✓ Kandidat {num} (Priorität {300-i}) - AM ANFANG bei Index {i}")
+                except:
+                    pass
+
+        # STRATEGIE 2: Suche um (32) herum
         for i, word in enumerate(block.words):
             if '(32)' in word.text:
-                code_32_found = True
                 if self.debug:
                     print(f"   ✓ (32) gefunden bei Index {i}")
-                    print(f"   Vorherige 10 Wörter: {[block.words[k].text for k in range(max(0, i-10), i)]}")
-                    print(f"   Nächste 15 Wörter: {[block.words[k].text for k in range(i+1, min(i+16, len(block.words)))]}")
 
-                # STRATEGIE 1: Suche VORHER (oft bei französischen Docs!)
-                # Suche rückwärts nach Muster "ZAHL CT" oder "ZAHL COLIS"
+                # Suche VORHER
                 for j in range(i-1, max(0, i-20), -1):
                     prev_word = block.words[j].text
-                    # Ist es "CT" oder "COLIS"?
                     if prev_word.upper() in ['CT', 'COLIS']:
-                        # Prüfe Wort davor
                         if j > 0:
                             num_word = block.words[j-1].text
                             if re.match(r'^(\d{1,2})$', num_word):
                                 try:
                                     num = int(num_word)
                                     if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
-                                        candidates.append((num, 200))  # Sehr hohe Priorität
-                                        if self.debug:
-                                            print(f"   ✓✓ Kandidat {num} (Priorität 200) - VOR (32): '{num_word} {prev_word}'")
+                                        # Nur wenn es NICHT schon als Packstückanzahl erkannt wurde
+                                        if not any(c[0] == num and c[1] > 200 for c in candidates):
+                                            candidates.append((num, 50))  # Mittlere Priorität
+                                            if self.debug:
+                                                print(f"   ✓ Kandidat {num} (Priorität 50) - VOR (32): '{num_word} {prev_word}'")
                                 except:
                                     pass
-
-                # STRATEGIE 2: Suche NACHHER (wie bisher)
-                for j in range(i+1, min(i+30, len(block.words))):
-                    next_word = block.words[j].text
-                    # Ist es eine einzelne Zahl 1-99?
-                    if re.match(r'^(\d{1,2})$', next_word):
-                        try:
-                            num = int(next_word)
-                            # Plausible Positionsnummer (1-99)
-                            # Ignoriere offensichtlich falsche Zahlen wie 31, 32, 33, 35, 37, 38 (Feld-Nummern)
-                            if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
-                                # Prüfe ob direkt danach "CT" oder "COLIS" kommt (beste Kandidaten!)
-                                if j+1 < len(block.words) and block.words[j+1].text.upper() in ['CT', 'COLIS']:
-                                    candidates.append((num, 100))  # Hohe Priorität
-                                    if self.debug:
-                                        print(f"   ✓ Kandidat {num} (Priorität 100) - NACH (32): vor '{block.words[j+1].text}'")
-                                else:
-                                    candidates.append((num, j-i))  # Priorität = Abstand von (32)
-                                    if self.debug:
-                                        print(f"   • Kandidat {num} (Priorität {j-i}) - NACH (32), Abstand {j-i}")
-                        except:
-                            pass
                 break
 
-        # Wähle besten Kandidaten (höchste Priorität = größter Wert!)
+        # Wähle besten Kandidaten
         if candidates:
-            # Sortiere: Erst nach Priorität (absteigend), dann nach Nummer (aufsteigend)
             candidates.sort(key=lambda x: (-x[1], x[0]))
             pos_number = candidates[0][0]
             if self.debug:
@@ -393,6 +391,8 @@ class LayoutBasedExtractor:
             if self.debug:
                 print(f"✓ (32) Positionsnummer: {position['orderNumber']}")
         else:
+            # Fallback
+            position['orderNumber'] = index + 1
             if self.debug:
                 print(f"⚠️  (32) Positionsnummer nicht gefunden, verwende {index + 1}")
 
