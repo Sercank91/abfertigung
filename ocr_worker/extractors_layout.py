@@ -196,46 +196,54 @@ class LayoutBasedExtractor:
                     print(f"✓ Versender: {header['sender'][:80]}...")
 
         # EMPFÄNGER (8) - VOLLSTÄNDIGE Adresse
+        # Problem: Firma kann in separatem Block vor (8) sein
+        # Lösung: Sammle aus ALLEN Wörtern auf Seite 1, die zum Empfänger gehören
         receiver_blocks = [b for b in blocks if '(8)' in b.field_codes]
-        if receiver_blocks:
-            receiver_block = receiver_blocks[0]
-            receiver_words = receiver_block.words
+        if receiver_blocks or all_words:
+            # Strategie: Suche in allen Wörtern nach dem Empfänger-Bereich
+            receiver_parts = []
+
+            # Verwende alle Wörter der Seite, nicht nur Block-Wörter
+            search_words = all_words if all_words else (receiver_blocks[0].words if receiver_blocks else [])
 
             if self.debug:
-                print(f"\n🔍 DEBUG Empfänger-Block:")
-                print(f"   Block hat {len(receiver_words)} Wörter")
-                print(f"   Erste 20 Wörter: {[w.text for w in receiver_words[:20]]}")
+                print(f"\n🔍 DEBUG Empfänger-Extraktion:")
+                print(f"   Durchsuche {len(search_words)} Wörter")
 
-            # Strategie: Sammle ALLE Wörter nach "Destinataire" oder "(8)", überspringe nur "No" und ID
-            receiver_parts = []
-            start_collecting = False
-
-            for i, word in enumerate(receiver_words):
-                # Start: Bei "Destinataire" oder "(8)"
-                if 'Destinataire' in word.text or 'TDestinataire' in word.text or '(8)' in word.text:
-                    start_collecting = True
+            # Finde Start: "Destinataire" oder "(8)"
+            start_index = -1
+            for i, word in enumerate(search_words):
+                if 'Destinataire' in word.text or 'TDestinataire' in word.text or ('(8)' in word.text and i < len(search_words) - 5):
+                    start_index = i
                     if self.debug:
-                        print(f"   ✓ Start bei: '{word.text}'")
-                    continue
+                        print(f"   ✓ Start bei Index {i}: '{word.text}'")
+                    break
 
-                if start_collecting:
+            if start_index >= 0:
+                # Sammle alle Wörter ab Start bis zum nächsten Feld-Code
+                for i in range(start_index + 1, min(start_index + 50, len(search_words))):
+                    word = search_words[i]
+
                     # Stoppe bei nächstem Feld-Code (außer (8))
                     if '(' in word.text and ')' in word.text and '(8)' not in word.text:
                         if self.debug:
-                            print(f"   ⏹ Stoppe bei Feld-Code: '{word.text}'")
+                            print(f"   ⏹ Stoppe bei: '{word.text}'")
                         break
 
-                    # Überspringe "No" und die ID nach "No"
+                    # Überspringe "No" und die ID
                     if word.text == 'No':
                         if self.debug:
-                            print(f"   ⊘ Überspringe 'No' und nächstes Wort")
-                        # Überspringe "No" und die nächste Nummer
-                        if i + 1 < len(receiver_words):
-                            continue
-                    elif i > 0 and receiver_words[i-1].text == 'No':
-                        # Das ist die ID nach "No", überspringe
+                            print(f"   ⊘ Überspringe 'No'")
+                        continue
+
+                    # Überspringe ID nach "No" (z.B. "ETRANGER", "TR123...")
+                    if i > 0 and search_words[i-1].text == 'No':
                         if self.debug:
                             print(f"   ⊘ Überspringe ID: '{word.text}'")
+                        continue
+
+                    # Überspringe reine Feldbezeichnungen
+                    if word.text in ['Destinataire', 'TDestinataire']:
                         continue
 
                     if self.debug:
@@ -308,8 +316,9 @@ class LayoutBasedExtractor:
         }
 
         # 1. POSITIONSNUMMER aus (32)
-        # Die Positionsnummer steht oft am Anfang einer Zeile nach (32)
-        # Patterns: "1 CT", "2 CT", "| 1 CT", etc.
+        # WICHTIG: Positionsnummer kann VOR oder NACH (32) stehen!
+        # Französisch: "1 CT ... (32)" oder "(32) ... 1 CT"
+        # Patterns: "1 CT", "2 COLIS", etc.
 
         # Finde (32) in den Wörtern
         code_32_found = False
@@ -325,10 +334,29 @@ class LayoutBasedExtractor:
                 code_32_found = True
                 if self.debug:
                     print(f"   ✓ (32) gefunden bei Index {i}")
+                    print(f"   Vorherige 10 Wörter: {[block.words[k].text for k in range(max(0, i-10), i)]}")
                     print(f"   Nächste 15 Wörter: {[block.words[k].text for k in range(i+1, min(i+16, len(block.words)))]}")
 
-                # Suche die nächsten 30 Wörter nach einer einzelnen Zahl (1-99)
-                # Die Positionsnummer steht normalerweise VOR "CT" oder "COLIS"
+                # STRATEGIE 1: Suche VORHER (oft bei französischen Docs!)
+                # Suche rückwärts nach Muster "ZAHL CT" oder "ZAHL COLIS"
+                for j in range(i-1, max(0, i-20), -1):
+                    prev_word = block.words[j].text
+                    # Ist es "CT" oder "COLIS"?
+                    if prev_word.upper() in ['CT', 'COLIS']:
+                        # Prüfe Wort davor
+                        if j > 0:
+                            num_word = block.words[j-1].text
+                            if re.match(r'^(\d{1,2})$', num_word):
+                                try:
+                                    num = int(num_word)
+                                    if 1 <= num <= 99 and num not in [31, 32, 33, 35, 37, 38, 44, 46]:
+                                        candidates.append((num, 200))  # Sehr hohe Priorität
+                                        if self.debug:
+                                            print(f"   ✓✓ Kandidat {num} (Priorität 200) - VOR (32): '{num_word} {prev_word}'")
+                                except:
+                                    pass
+
+                # STRATEGIE 2: Suche NACHHER (wie bisher)
                 for j in range(i+1, min(i+30, len(block.words))):
                     next_word = block.words[j].text
                     # Ist es eine einzelne Zahl 1-99?
@@ -342,16 +370,16 @@ class LayoutBasedExtractor:
                                 if j+1 < len(block.words) and block.words[j+1].text.upper() in ['CT', 'COLIS']:
                                     candidates.append((num, 100))  # Hohe Priorität
                                     if self.debug:
-                                        print(f"   ✓ Kandidat {num} (Priorität 100) - vor '{block.words[j+1].text}'")
+                                        print(f"   ✓ Kandidat {num} (Priorität 100) - NACH (32): vor '{block.words[j+1].text}'")
                                 else:
                                     candidates.append((num, j-i))  # Priorität = Abstand von (32)
                                     if self.debug:
-                                        print(f"   • Kandidat {num} (Priorität {j-i}) - Abstand {j-i}")
+                                        print(f"   • Kandidat {num} (Priorität {j-i}) - NACH (32), Abstand {j-i}")
                         except:
                             pass
                 break
 
-        # Wähle besten Kandidaten (höchste Priorität = kleinster Wert)
+        # Wähle besten Kandidaten (höchste Priorität = größter Wert!)
         if candidates:
             # Sortiere: Erst nach Priorität (absteigend), dann nach Nummer (aufsteigend)
             candidates.sort(key=lambda x: (-x[1], x[0]))
