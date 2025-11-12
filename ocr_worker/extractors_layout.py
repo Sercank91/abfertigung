@@ -201,6 +201,11 @@ class LayoutBasedExtractor:
             receiver_block = receiver_blocks[0]
             receiver_words = receiver_block.words
 
+            if self.debug:
+                print(f"\n🔍 DEBUG Empfänger-Block:")
+                print(f"   Block hat {len(receiver_words)} Wörter")
+                print(f"   Erste 20 Wörter: {[w.text for w in receiver_words[:20]]}")
+
             # Strategie: Sammle ALLE Wörter nach "Destinataire" oder "(8)", überspringe nur "No" und ID
             receiver_parts = []
             start_collecting = False
@@ -209,23 +214,36 @@ class LayoutBasedExtractor:
                 # Start: Bei "Destinataire" oder "(8)"
                 if 'Destinataire' in word.text or 'TDestinataire' in word.text or '(8)' in word.text:
                     start_collecting = True
+                    if self.debug:
+                        print(f"   ✓ Start bei: '{word.text}'")
                     continue
 
                 if start_collecting:
                     # Stoppe bei nächstem Feld-Code (außer (8))
                     if '(' in word.text and ')' in word.text and '(8)' not in word.text:
+                        if self.debug:
+                            print(f"   ⏹ Stoppe bei Feld-Code: '{word.text}'")
                         break
 
                     # Überspringe "No" und die ID nach "No"
                     if word.text == 'No':
+                        if self.debug:
+                            print(f"   ⊘ Überspringe 'No' und nächstes Wort")
                         # Überspringe "No" und die nächste Nummer
                         if i + 1 < len(receiver_words):
                             continue
                     elif i > 0 and receiver_words[i-1].text == 'No':
                         # Das ist die ID nach "No", überspringe
+                        if self.debug:
+                            print(f"   ⊘ Überspringe ID: '{word.text}'")
                         continue
 
+                    if self.debug:
+                        print(f"   ✓ Sammle: '{word.text}'")
                     receiver_parts.append(word.text)
+
+            if self.debug:
+                print(f"   Gesammelte Teile: {len(receiver_parts)}")
 
             if receiver_parts:
                 header['receiver'] = ' '.join(receiver_parts[:30])  # Max 30 Wörter
@@ -298,9 +316,17 @@ class LayoutBasedExtractor:
         pos_number = None
         candidates = []  # Sammle alle Kandidaten
 
+        if self.debug:
+            print(f"\n🔍 DEBUG Positionsnummer:")
+            print(f"   Block hat {len(block.words)} Wörter")
+
         for i, word in enumerate(block.words):
             if '(32)' in word.text:
                 code_32_found = True
+                if self.debug:
+                    print(f"   ✓ (32) gefunden bei Index {i}")
+                    print(f"   Nächste 15 Wörter: {[block.words[k].text for k in range(i+1, min(i+16, len(block.words)))]}")
+
                 # Suche die nächsten 30 Wörter nach einer einzelnen Zahl (1-99)
                 # Die Positionsnummer steht normalerweise VOR "CT" oder "COLIS"
                 for j in range(i+1, min(i+30, len(block.words))):
@@ -315,8 +341,12 @@ class LayoutBasedExtractor:
                                 # Prüfe ob direkt danach "CT" oder "COLIS" kommt (beste Kandidaten!)
                                 if j+1 < len(block.words) and block.words[j+1].text.upper() in ['CT', 'COLIS']:
                                     candidates.append((num, 100))  # Hohe Priorität
+                                    if self.debug:
+                                        print(f"   ✓ Kandidat {num} (Priorität 100) - vor '{block.words[j+1].text}'")
                                 else:
                                     candidates.append((num, j-i))  # Priorität = Abstand von (32)
+                                    if self.debug:
+                                        print(f"   • Kandidat {num} (Priorität {j-i}) - Abstand {j-i}")
                         except:
                             pass
                 break
@@ -326,6 +356,9 @@ class LayoutBasedExtractor:
             # Sortiere: Erst nach Priorität (absteigend), dann nach Nummer (aufsteigend)
             candidates.sort(key=lambda x: (-x[1], x[0]))
             pos_number = candidates[0][0]
+            if self.debug:
+                print(f"   📌 Alle Kandidaten (sortiert): {candidates}")
+                print(f"   ➜ Gewählt: {pos_number}")
 
         if pos_number:
             position['orderNumber'] = pos_number
