@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
 """
-Test-Script: Universelle Code-basierte Extraktion direkt von PDF
+Test-Script: Universelle Code-basierte Extraktion direkt von PDF mit OCR
 """
 import sys
 import os
-import fitz  # PyMuPDF
+from pdf2image import convert_from_path
+import pytesseract
 from extractors_code_based import extract_positions_code_based
 
 
 def extract_text_from_pdf(pdf_path: str) -> str:
-    """Extrahiert Text aus PDF"""
-    doc = fitz.open(pdf_path)
+    """Extrahiert Text aus PDF mit OCR (für gescannte PDFs)"""
+    print("   Konvertiere PDF zu Bildern...")
+    images = convert_from_path(pdf_path, dpi=300)
+
+    print(f"   {len(images)} Seiten gefunden")
+    print("   Fuehre OCR durch...")
+
     text = ""
-    for page in doc:
-        text += page.get_text()
-    doc.close()
+    for i, image in enumerate(images, 1):
+        print(f"   - Seite {i}...", end=" ")
+        page_text = pytesseract.image_to_string(image, lang='deu+fra+eng')
+        text += f"\n--- SEITE {i} ---\n{page_text}\n"
+        print(f"{len(page_text)} Zeichen")
+
     return text
 
 
