@@ -8,7 +8,7 @@ from layout_analyzer import LayoutAnalyzer
 
 def debug_layout(pdf_path: str):
     print("="*80)
-    print(f"🔍 LAYOUT-ANALYSE: {pdf_path}")
+    print(f"LAYOUT-ANALYSE: {pdf_path}")
     print("="*80)
 
     # PDF zu Bildern
@@ -17,22 +17,22 @@ def debug_layout(pdf_path: str):
 
     for page_num, image in enumerate(images, 1):
         print(f"\n{'='*80}")
-        print(f"📄 SEITE {page_num}")
+        print(f"SEITE {page_num}")
         print(f"{'='*80}")
 
         blocks, all_words = analyzer.analyze_image(image, page_num - 1)
 
-        print(f"\n📦 {len(blocks)} Blöcke gefunden:")
+        print(f"\nBloecke gefunden: {len(blocks)}")
         for i, block in enumerate(blocks, 1):
             print(f"\n  Block {i}:")
             print(f"    Position: x={block.x}, y={block.y}, w={block.width}, h={block.height}")
             print(f"    Feldcodes: {block.field_codes}")
-            print(f"    Wörter: {len(block.words)}")
+            print(f"    Woerter: {len(block.words)}")
             if len(block.words) > 0:
-                print(f"    Erste 20 Wörter: {[w.text for w in block.words[:20]]}")
+                print(f"    Erste 20 Woerter: {[w.text for w in block.words[:20]]}")
 
         # Suche nach wichtigen Feldcodes in ALLEN Wörtern
-        print(f"\n🔍 Feldcode-Positionen in allen {len(all_words)} Wörtern:")
+        print(f"\nFeldcode-Positionen in allen {len(all_words)} Woertern:")
         for code in ['(2)', '(8)', '(32)', '(33)', '(35)', '(37)', '(38)']:
             positions = [i for i, w in enumerate(all_words) if code in w.text]
             if positions:
