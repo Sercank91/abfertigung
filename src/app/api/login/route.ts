@@ -6,6 +6,7 @@ import { verifyPassword } from '@/lib/password';
 import { LoginSchema, validateData } from '@/lib/validators';
 import logger from '@/lib/logger';
 import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
+import { getJwtSecret } from '@/lib/auth';
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
 // Check moved to inside handler to prevent build crashes
@@ -17,10 +18,12 @@ import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from
  * Subdomain bestimmt welcher Tenant (Firma) sich anmeldet.
  */
 export const POST = handleApiError(async (request: NextRequest) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
+  let SECRET;
+  try {
+    SECRET = getJwtSecret();
+  } catch (error) {
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
-  const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
   // ✅ Input-Validierung mit Zod
   const body = await request.json();

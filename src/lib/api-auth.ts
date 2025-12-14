@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 
 // ✅ JWT Secret Validierung (Moved to function scope to avoid build-time errors)
 // if (!process.env.JWT_SECRET) { ... }
@@ -37,10 +38,7 @@ export interface AuthUser {
  */
 export async function getUserFromToken(request: NextRequest): Promise<AuthUser | null> {
   try {
-    if (!process.env.JWT_SECRET) {
-      throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
-    }
-    const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+    const SECRET = getJwtSecret();
 
     const token = request.cookies.get('auth-token')?.value;
 
