@@ -1,12 +1,8 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-// ✅ JWT Secret mit Validierung
-if (!process.env.JWT_SECRET) {
-  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
-}
-
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+// ✅ JWT Secret Validierung (Moved to function scope to avoid build-time errors)
+// if (!process.env.JWT_SECRET) { ... }
 
 /**
  * User-Daten aus JWT Token
@@ -41,6 +37,11 @@ export interface AuthUser {
  */
 export async function getUserFromToken(request: NextRequest): Promise<AuthUser | null> {
   try {
+    if (!process.env.JWT_SECRET) {
+      throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
+    }
+    const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+
     const token = request.cookies.get('auth-token')?.value;
 
     if (!token) {

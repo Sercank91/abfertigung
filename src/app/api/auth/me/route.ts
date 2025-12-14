@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { getUserFromToken } from '@/lib/api-auth';
-
 /**
  * GET /api/auth/me
  *
