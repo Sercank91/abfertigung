@@ -189,7 +189,7 @@ const searchText = [
     _count: true,
     orderBy: { countryCode: 'asc' },
   });
-  stats.slice(0, 20).forEach(stat => {
+  stats.slice(0, 20).forEach((stat: (typeof stats)[number]) => {
     console.log(`   ${stat.countryCode}: ${stat._count} offices`);
   });
   
