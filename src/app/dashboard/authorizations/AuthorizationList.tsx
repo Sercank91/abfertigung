@@ -291,7 +291,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
               placeholder="Bewilligungen suchen..."
               value={searchInput}
               onChange={handleSearchChange}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
               maxLength={100}
               aria-label="Bewilligungen suchen"
             />
@@ -454,7 +454,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
                     required
                     value={formData.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. C521"
                     maxLength={MAX_NAME_LENGTH}
                     aria-required="true"
@@ -476,7 +476,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
                     required
                     value={formData.code}
                     onChange={(e) => handleInputChange('code', e.target.value.toUpperCase())}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none font-mono"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none font-mono"
                     placeholder="z.B. ATACRD002Q81"
                     maxLength={MAX_CODE_LENGTH}
                     pattern="[A-Z0-9]+"
@@ -497,7 +497,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
                     id="auth-description"
                     value={formData.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     rows={3}
                     placeholder="z.B. Vereinfachtes Verfahren AT"
                     maxLength={MAX_DESCRIPTION_LENGTH}

@@ -1,11 +1,11 @@
-import type { Metadata } from 'next'
-import './globals.css'
-import { ToastProvider } from '@/components/providers/ToastProvider'
+import type { Metadata } from 'next';
+import './globals.css';
+import { ToastProvider } from '@/components/providers/ToastProvider';
 
 export const metadata: Metadata = {
   title: 'Abfertigung Rechner',
   description: 'Österreichischer Abfertigungsrechner',
-}
+};
 
 export default function RootLayout({
   children,
@@ -19,5 +19,5 @@ export default function RootLayout({
         <ToastProvider />
       </body>
     </html>
-  )
+  );
 }

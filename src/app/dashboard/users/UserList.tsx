@@ -65,7 +65,7 @@ const validateEmail = (email: string): boolean => {
 };
 
 const validatePhone = (phone: string): boolean => {
-  const re = /^[\d\s\-\+\(\)]+$/;
+  const re = /^[\d\s\-+()]+$/;
   return !phone || re.test(phone);
 };
 
@@ -404,7 +404,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
               placeholder="Benutzer suchen..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
               maxLength={100}
               aria-label="Benutzer suchen"
             />
@@ -593,7 +593,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                     required
                     value={formData.username}
                     onChange={(e) => handleInputChange('username', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. jdoe"
                     maxLength={MAX_USERNAME_LENGTH}
                     disabled={!!editingUser}
@@ -623,7 +623,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                       required
                       value={formData.firstName}
                       onChange={(e) => handleInputChange('firstName', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       maxLength={MAX_NAME_LENGTH}
                       aria-required="true"
                     />
@@ -641,7 +641,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                       required
                       value={formData.lastName}
                       onChange={(e) => handleInputChange('lastName', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       maxLength={MAX_NAME_LENGTH}
                       aria-required="true"
                     />
@@ -662,7 +662,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                       type="email"
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       maxLength={MAX_EMAIL_LENGTH}
                       placeholder="name@beispiel.de"
                       aria-describedby="email-hint"
@@ -680,7 +680,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => handleInputChange('phone', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       maxLength={MAX_PHONE_LENGTH}
                       placeholder="+43 123 456789"
                       aria-describedby="phone-hint"
@@ -701,7 +701,7 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
                     type="password"
                     value={formData.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     minLength={MIN_PASSWORD_LENGTH}
                     aria-required={!editingUser}
                     aria-describedby="password-hint"

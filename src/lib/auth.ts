@@ -9,6 +9,7 @@ export interface TokenPayload {
   username: string;
   tenantId: string;
   tenantName: string;
+  tenantSlug?: string;
   role: string;
   firstName: string;
   lastName: string;
@@ -20,7 +21,7 @@ export interface TokenPayload {
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
     const { payload } = await jwtVerify(token, SECRET);
-    return payload as TokenPayload;
+    return payload as unknown as TokenPayload;
   } catch (error) {
     console.error('Token verification failed:', error);
     return null;

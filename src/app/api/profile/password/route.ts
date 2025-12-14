@@ -38,7 +38,7 @@ export async function PUT(request: NextRequest) {
 
     // Aktuellen Benutzer mit Passwort abrufen
     const userResult = await pool.query(
-      `SELECT id, username, password FROM "User" WHERE id = $1 AND "tenantId" = $2`,
+      'SELECT id, username, password FROM "User" WHERE id = $1 AND "tenantId" = $2',
       [user.id, user.tenantId]
     );
 

@@ -329,7 +329,7 @@ export default function RouteList({
               placeholder="Routen suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
             />
             <svg
               className="absolute right-2 top-1.5 text-gray-400 pointer-events-none"
@@ -473,7 +473,7 @@ export default function RouteList({
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. Kapitan Andreevo"
                     required
                   />
@@ -487,7 +487,7 @@ export default function RouteList({
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     rows={2}
                     placeholder="Zusätzliche Informationen..."
                   />
@@ -509,7 +509,7 @@ export default function RouteList({
                           handleAddCountry();
                         }
                       }}
-                      className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       placeholder="z.B. DE, AT, TR"
                       maxLength={2}
                     />
@@ -553,14 +553,14 @@ export default function RouteList({
                         setOfficeSearch(e.target.value);
                         searchCustomsOffices(e.target.value);
                       }}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       placeholder="Zollstelle suchen (Code oder Name)..."
                     />
                   </div>
 
                   {/* Search Results */}
                   {officeSearch && officeSearchResults.length > 0 && (
-                    <div className="border border-[#c6c6c6] rounded-sm max-h-40 overflow-y-auto mb-2">
+                    <div className="border border-[#c6c6c6] rounded-sm max-h-40 overflow-y-auto mb-2 bg-white text-gray-900">
                       {officeSearchResults.map((office) => (
                         <button
                           key={office.id}

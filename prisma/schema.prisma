@@ -102,21 +102,21 @@ model CompanyGuarantee {
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model CustomsOffice {
-  id                      String               @id @default(uuid())
-  code                    String               @unique
-  name                    String
-  countryCode             String
-  city                    String?
-  address                 String?
-  isActive                Boolean              @default(true)
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
-  searchText              String?
-  declarations            Declaration[]
-  routeTransitOffices     RouteTransitOffice[]
-  clearancesDeparture     Clearance[]          @relation("ClearanceDepartureOffice")
-  clearancesDispatch      Clearance[]          @relation("ClearanceDispatchOffice")
-  clearancesDestination   Clearance[]          @relation("ClearanceDestinationOffice")
+  id                    String               @id @default(uuid())
+  code                  String               @unique
+  name                  String
+  countryCode           String
+  city                  String?
+  address               String?
+  isActive              Boolean              @default(true)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  searchText            String?
+  clearancesDeparture   Clearance[]          @relation("ClearanceDepartureOffice")
+  clearancesDestination Clearance[]          @relation("ClearanceDestinationOffice")
+  clearancesDispatch    Clearance[]          @relation("ClearanceDispatchOffice")
+  declarations          Declaration[]
+  routeTransitOffices   RouteTransitOffice[]
 
   @@index([countryCode])
   @@index([code])
@@ -201,9 +201,6 @@ model Clearance {
   simplifiedProcedure Boolean            @default(false)
   goodsLocationId     String?
   authorizationId     String?
-  departureOfficeId   String?
-  dispatchOfficeId    String?
-  destinationOfficeId String?
   registrationDate    DateTime           @default(now())
   arrivalDate         DateTime
   status              String             @default("in_bearbeitung")
@@ -213,17 +210,20 @@ model Clearance {
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   anmNr               String?
+  departureOfficeId   String?
+  dispatchOfficeId    String?
+  destinationOfficeId String?
   authorization       Authorization?     @relation(fields: [authorizationId], references: [id])
   company             Company            @relation(fields: [companyId], references: [id])
   createdBy           User               @relation("ClearanceCreatedBy", fields: [createdById], references: [id])
+  departureOffice     CustomsOffice?     @relation("ClearanceDepartureOffice", fields: [departureOfficeId], references: [id])
+  destinationOffice   CustomsOffice?     @relation("ClearanceDestinationOffice", fields: [destinationOfficeId], references: [id])
+  dispatchOffice      CustomsOffice?     @relation("ClearanceDispatchOffice", fields: [dispatchOfficeId], references: [id])
   goodsLocation       GoodsLocation?     @relation(fields: [goodsLocationId], references: [id])
   guarantee           Guarantee          @relation(fields: [guaranteeId], references: [id])
   route               Route?             @relation(fields: [routeId], references: [id])
   tenant              Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   updatedBy           User?              @relation("ClearanceUpdatedBy", fields: [updatedById], references: [id])
-  departureOffice     CustomsOffice?     @relation("ClearanceDepartureOffice", fields: [departureOfficeId], references: [id])
-  dispatchOffice      CustomsOffice?     @relation("ClearanceDispatchOffice", fields: [dispatchOfficeId], references: [id])
-  destinationOffice   CustomsOffice?     @relation("ClearanceDestinationOffice", fields: [destinationOfficeId], references: [id])
   history             ClearanceHistory[]
   declarations        Declaration[]
 
@@ -316,26 +316,22 @@ model ClearanceHistory {
   @@index([userId])
 }
 
-// ============================================
-// OCR-System Models (für Python Worker)
-// ============================================
-
 model OcrDocument {
-  id            String     @id @default(uuid())
-  clearanceId   String
-  fileName      String
-  fileSize      Int
-  fileType      String     // "application/pdf", "image/jpeg", etc.
-  fileData      Bytes?     // Optional: Datei in DB speichern
-  filePath      String?    // Oder: Pfad zu Datei auf Disk
-  status        String     @default("pending") // "pending", "processing", "completed", "failed"
-  ocrJobId      String?    // Celery Task ID
-  progress      Int        @default(0)
-  errorMessage  String?
-  processedAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  shipments     Shipment[]
+  id           String     @id @default(uuid())
+  clearanceId  String
+  fileName     String
+  fileSize     Int
+  fileType     String
+  fileData     Bytes?
+  filePath     String?
+  status       String     @default("pending")
+  ocrJobId     String?
+  progress     Int        @default(0)
+  errorMessage String?
+  processedAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  shipments    Shipment[]
 
   @@index([clearanceId])
   @@index([status])
@@ -346,21 +342,21 @@ model Shipment {
   id                  String             @id @default(uuid())
   ocrDocumentId       String
   clearanceId         String
-  declarationId       String?            // Später zugeordnet zu Declaration
-  mrn                 String?            // MRN-Nummer (25NLBRHOG51LW45DA5)
-  documentType        String?            // "EX1", "T1", "N821"
-  procedureType       String?            // "T1", "T2", "T-"
-  commonSender        Json?              // { name, address, zip, city, country }
-  commonReceiver      Json?              // { name, address, zip, city, country }
-  commonOriginCountry String?            // "DE"
-  commonDestCountry   String?            // "TR"
+  declarationId       String?
+  mrn                 String?
+  documentType        String?
+  procedureType       String?
+  commonSender        Json?
+  commonReceiver      Json?
+  commonOriginCountry String?
+  commonDestCountry   String?
   totalPackages       Int?
   totalGrossWeight    Float?
   totalNetWeight      Float?
   totalValue          Float?
   currency            String?
-  invoiceNumbers      String[]           // ["INV-001", "INV-002"]
-  verified            Boolean            @default(false) // Vom Benutzer geprüft
+  invoiceNumbers      String[]
+  verified            Boolean            @default(false)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
   ocrDocument         OcrDocument        @relation(fields: [ocrDocumentId], references: [id], onDelete: Cascade)
@@ -375,17 +371,17 @@ model Shipment {
 model ShipmentPosition {
   id                 String   @id @default(uuid())
   shipmentId         String
-  orderNumber        Int      // 1, 2, 3, ...
+  orderNumber        Int
   hsCode             String
   description        String
   netWeight          Float
-  grossWeight        Float    @default(0) // Nur bei orderNumber = 1
-  procedure          String?  // "1010", "3171", "3151", etc.
-  procedureType      String?  // "T1", "T2"
-  sender             Json?    // Nur wenn abweichend von commonSender
-  receiver           Json?    // Nur wenn abweichend von commonReceiver
-  originCountry      String?  // Nur wenn abweichend
-  destinationCountry String?  // Nur wenn abweichend
+  grossWeight        Float    @default(0)
+  procedure          String?
+  procedureType      String?
+  sender             Json?
+  receiver           Json?
+  originCountry      String?
+  destinationCountry String?
   value              Float?
   currency           String?
   invoiceNumber      String?

@@ -15,7 +15,7 @@ export async function GET(
 
     // OcrDocument aus Datenbank laden
     const docResult = await pool.query(
-      `SELECT * FROM "OcrDocument" WHERE id = $1`,
+      'SELECT * FROM "OcrDocument" WHERE id = $1',
       [documentId]
     );
 
@@ -30,7 +30,7 @@ export async function GET(
 
     // Shipments laden
     const shipmentsResult = await pool.query(
-      `SELECT * FROM "Shipment" WHERE "ocrDocumentId" = $1`,
+      'SELECT * FROM "Shipment" WHERE "ocrDocumentId" = $1',
       [documentId]
     );
 

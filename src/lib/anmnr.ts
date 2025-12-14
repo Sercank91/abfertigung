@@ -24,7 +24,7 @@ export async function generateNextAnmNr(): Promise<string> {
     
     // ✅ Hole Sequenz-Eintrag MIT ROW LOCK
     // FOR UPDATE = Keine andere Transaction kann diese Zeile gleichzeitig lesen/ändern
-    let result = await client.query(
+    const result = await client.query(
       `SELECT "letzteNummer" 
        FROM "AnmNrSequence" 
        WHERE jahr = $1 
@@ -124,7 +124,7 @@ export async function getCurrentSequenceInfo(): Promise<{
     const currentYear = new Date().getFullYear();
     
     const result = await pool.query(
-      `SELECT "letzteNummer" FROM "AnmNrSequence" WHERE jahr = $1`,
+      'SELECT "letzteNummer" FROM "AnmNrSequence" WHERE jahr = $1',
       [currentYear]
     );
     

@@ -1,38 +1,38 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
+import { useState } from 'react';
 
 export default function Calculator() {
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [monthlyGross, setMonthlyGross] = useState('')
-  const [result, setResult] = useState<number | null>(null)
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [monthlyGross, setMonthlyGross] = useState('');
+  const [result, setResult] = useState<number | null>(null);
 
   const calculateAbfertigung = () => {
-    if (!startDate || !endDate || !monthlyGross) return
+    if (!startDate || !endDate || !monthlyGross) return;
 
-    const start = new Date(startDate)
-    const end = new Date(endDate)
-    const gross = parseFloat(monthlyGross)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const gross = parseFloat(monthlyGross);
 
     // Berechne Jahre
-    const years = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+    const years = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
 
     // Abfertigung alt (vor 2003)
     // 2 Monatsbezüge nach 3 Jahren
     // + 1 Monatsbezug pro weiteren 5 Jahre
-    let abfertigung = 0
+    let abfertigung = 0;
 
     if (years >= 3) {
-      abfertigung = gross * 2 // Grundbetrag nach 3 Jahren
+      abfertigung = gross * 2; // Grundbetrag nach 3 Jahren
       
-      const additionalYears = years - 3
-      const additionalPayments = Math.floor(additionalYears / 5)
-      abfertigung += additionalPayments * gross
+      const additionalYears = years - 3;
+      const additionalPayments = Math.floor(additionalYears / 5);
+      abfertigung += additionalPayments * gross;
     }
 
-    setResult(abfertigung)
-  }
+    setResult(abfertigung);
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-xl p-8">
@@ -98,5 +98,5 @@ export default function Calculator() {
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { pool } from '@/lib/db';
+import logger from '@/lib/logger';
 
 const execPromise = promisify(exec);
 
@@ -49,7 +50,7 @@ async function sendCeleryTask(
     );
 
     if (stderr) {
-      console.error('Python stderr:', stderr);
+      logger.error('Python stderr:', { stderr });
     }
 
     // Parsen des JSON-Outputs
@@ -61,7 +62,7 @@ async function sendCeleryTask(
 
     return result.task_id;
   } catch (error) {
-    console.error('Fehler beim Senden des Tasks:', error);
+    logger.error('Fehler beim Senden des Tasks:', { error });
     throw error;
   }
 }
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
 
-    console.log(`✅ Datei gespeichert: ${filePath}`);
+    logger.info(`✅ Datei gespeichert: ${filePath}`);
 
     // OcrDocument in Datenbank erstellen
     const docId = uuidv4();
@@ -150,18 +151,18 @@ export async function POST(request: NextRequest) {
       ]
     );
 
-    console.log(`✅ OcrDocument erstellt: ${docId}`);
+    logger.info(`✅ OcrDocument erstellt: ${docId}`);
 
     // Celery Task senden via Python-Skript
     const taskId = await sendCeleryTask(docId, filePath, clearanceId);
 
     // Task-ID in Datenbank speichern
     await pool.query(
-      `UPDATE "OcrDocument" SET "ocrJobId" = $1, "updatedAt" = $2 WHERE id = $3`,
+      'UPDATE "OcrDocument" SET "ocrJobId" = $1, "updatedAt" = $2 WHERE id = $3',
       [taskId, new Date(), docId]
     );
 
-    console.log(`✅ Celery Task gesendet: ${taskId}`);
+    logger.info(`✅ Celery Task gesendet: ${taskId}`);
 
     return NextResponse.json({
       success: true,
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
       message: 'Datei hochgeladen. OCR-Verarbeitung gestartet.',
     });
   } catch (error) {
-    console.error('❌ Upload-Fehler:', error);
+    logger.error('❌ Upload-Fehler:', { error });
     return NextResponse.json(
       {
         error: 'Interner Serverfehler',

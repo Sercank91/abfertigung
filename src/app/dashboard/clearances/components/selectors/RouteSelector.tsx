@@ -12,19 +12,21 @@ import { transliterate } from '@/lib/transliterate';
  * - Transit Offices (Drag & Drop + Suche mit API)
  */
 
-interface Route {
-  id: string;
-  name: string;
-  countries: string[];
-  transitOffices?: Array<{
-    order: number;
-    customsOffice: {
-      code: string;
-      name: string;
-      countryCode: string;
-    };
-  }>;
-}
+  interface Route {
+    id: string;
+    name: string;
+    countries: string[];
+    transitOffices?: Array<{
+      id: string;
+      order: number;
+      customsOffice: {
+        id: string;
+        code: string;
+        name: string;
+        countryCode: string;
+      };
+    }>;
+  }
 
 interface CustomsOffice {
   id: string;

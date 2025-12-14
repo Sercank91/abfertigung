@@ -19,6 +19,7 @@ export interface AuthUser {
   lastName: string;
   tenantId: string;
   tenantName: string;
+  tenantSlug?: string;
   role: string;
 }
 
@@ -48,7 +49,21 @@ export async function getUserFromToken(request: NextRequest): Promise<AuthUser |
 
     const { payload } = await jwtVerify(token, SECRET);
 
-    return payload as AuthUser;
+    const hostname = request.headers.get('host') || '';
+    const hostnameWithoutPort = hostname.split(':')[0];
+    let hostTenantId = null;
+
+    if (hostnameWithoutPort !== 'localhost' && hostnameWithoutPort !== 'www.localhost' && hostnameWithoutPort !== 'abfertigung.io' && hostnameWithoutPort !== 'www.abfertigung.io') {
+      if (hostnameWithoutPort.endsWith('.localhost')) hostTenantId = hostnameWithoutPort.split('.')[0];
+      else if (hostnameWithoutPort.endsWith('.abfertigung.io')) hostTenantId = hostnameWithoutPort.split('.')[0];
+    }
+
+    // Cross-Tenant Check
+    if (hostTenantId && (payload as any).tenantSlug && hostTenantId !== (payload as any).tenantSlug) {
+      return null;
+    }
+
+    return payload as unknown as AuthUser;
   } catch (error) {
     // Token ist ungültig oder abgelaufen
     console.error('Token verification failed:', error);

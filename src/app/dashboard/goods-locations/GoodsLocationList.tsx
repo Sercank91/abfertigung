@@ -165,7 +165,7 @@ export default function GoodsLocationList({
               placeholder="Warenorte suchen..."
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
             />
             <svg
               className="absolute right-2 top-1.5 text-gray-400 pointer-events-none"
@@ -286,7 +286,7 @@ export default function GoodsLocationList({
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. Asfinag - 433"
                     required
                   />
@@ -301,7 +301,7 @@ export default function GoodsLocationList({
                     type="text"
                     value={formData.code}
                     onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. 433"
                   />
                 </div>
@@ -314,7 +314,7 @@ export default function GoodsLocationList({
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     rows={3}
                     placeholder="Zusätzliche Informationen..."
                   />

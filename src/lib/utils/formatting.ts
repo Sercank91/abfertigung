@@ -197,7 +197,7 @@ export function formatPhone(phone: string): string {
   if (!phone) return '';
 
   // Entferne alle Nicht-Ziffern außer +
-  let cleaned = phone.replace(/[^\d+]/g, '');
+  const cleaned = phone.replace(/[^\d+]/g, '');
 
   // Österreichische Nummern formatieren
   if (cleaned.startsWith('+43')) {
@@ -233,7 +233,7 @@ export function sanitizeFilename(filename: string): string {
   if (!filename) return '';
 
   return filename
-    .replace(/[^a-zA-Z0-9_\-\.]/g, '_')
+    .replace(/[^a-zA-Z0-9_\-.]/g, '_')
     .replace(/_{2,}/g, '_')
     .replace(/^_+|_+$/g, '');
 }

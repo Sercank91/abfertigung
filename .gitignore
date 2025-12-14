@@ -161,6 +161,30 @@ wheels/
 *.egg
 MANIFEST
 
-# OCR Worker uploads and temp files
-ocr_worker/uploads/
-ocr_worker/*.pyc
+# OCR (wird neu entwickelt – komplett ignorieren)
+ocr_worker/
+ocr_env/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Turbopack / Next tooling
+.turbo/
+.vercel/
+
+# Python venv (bei dir liegt "ocr_env" im Ordner!) ocr_env/ wurde jetzt entfernt!
+.venv/
+venv/
+
+# Local temp
+tmp/
+temp/
+
+# Prisma local artifacts (falls vorhanden)
+prisma/*.db
+
+# Package manager caches (optional)
+pnpm-lock.yaml

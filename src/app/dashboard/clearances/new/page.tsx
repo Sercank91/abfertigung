@@ -88,10 +88,6 @@ export default async function NewClearancePage() {
         <div className="w-full">
           <ClearanceForm
             userId={user.id}
-            companies={initialData.companies}
-            routes={initialData.routes}
-            goodsLocations={initialData.goodsLocations}
-            authorizations={initialData.authorizations}
           />
         </div>
       </div>

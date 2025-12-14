@@ -593,7 +593,7 @@ export default function ClearanceForm({
           console.error('Server Error Response:', text.substring(0, 500));
           
           if (method === 'PUT') {
-            throw new Error(`UPDATE-Route existiert nicht! Erstellen Sie: src/app/api/clearances/[anmNr]/route.ts`);
+            throw new Error('UPDATE-Route existiert nicht! Erstellen Sie: src/app/api/clearances/[anmNr]/route.ts');
           } else {
             throw new Error(`Server Error (${response.status}): Die API gibt HTML statt JSON zurück.`);
           }

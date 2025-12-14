@@ -102,7 +102,7 @@ export default async function DashboardPage() {
               <Link key={card.href} href={card.href} className="dashboard-card">
                 <div className="flex items-center gap-4">
                   <div className="card-icon">
-                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-8 h-8" width="32" height="32" fill="currentColor" viewBox="0 0 24 24">
                       <path d={card.icon}/>
                     </svg>
                   </div>
@@ -157,7 +157,7 @@ export default async function DashboardPage() {
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
           transition: all 0.2s ease;
           text-decoration: none;
-          color: inherit;
+          color: #1f2937;
         }
         
         .dashboard-card:hover {

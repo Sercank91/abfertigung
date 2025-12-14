@@ -161,7 +161,7 @@ export default function GuaranteeList({ initialGuarantees, canEdit, userRole }: 
               placeholder="Bürgschaften suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
             />
             <svg
               className="absolute right-2 top-1.5 text-gray-400 pointer-events-none"
@@ -300,7 +300,7 @@ export default function GuaranteeList({ initialGuarantees, canEdit, userRole }: 
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. Verag AT"
                   />
                 </div>
@@ -313,7 +313,7 @@ export default function GuaranteeList({ initialGuarantees, canEdit, userRole }: 
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm min-h-[60px] bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     rows={3}
                     placeholder="Zusätzliche Informationen..."
                   />

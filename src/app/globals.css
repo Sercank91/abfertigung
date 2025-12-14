@@ -11,3 +11,10 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Hard reset for SVGs to prevent layout explosion if Tailwind fails */
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}

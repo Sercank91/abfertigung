@@ -1,27 +1,16 @@
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { pool } from '@/lib/db'
-
-async function getTenantBySubdomain(subdomain: string) {
-  try {
-    const result = await pool.query(
-      `SELECT id, name, domain FROM "Tenant" WHERE domain = $1`,
-      [subdomain]
-    )
-    return result.rows[0] || null
-  } catch (error) {
-    console.error('Tenant lookup error:', error)
-    return null
-  }
-}
+import { cookies, headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { prisma } from '@/lib/prisma';
+import { getSubdomainFromHost } from '@/lib/tenant';
+import { jwtVerify } from 'jose';
 
 // Firmenlogos basierend auf Subdomain
 function getCompanyLogo(subdomain: string) {
   const logos: { [key: string]: string } = {
     'verag': 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg',
     'dsv': 'https://dsv-media-premium.azureedge.net/~/media/corporate/global/logo/dsv-logo-small.svg?iar=0&rev=391728928e824eef9247d3d041620943'
-  }
-  return logos[subdomain] || null
+  };
+  return logos[subdomain] || null;
 }
 
 // Client-Komponente für Login-Formular
@@ -79,7 +68,7 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
                   id="username"
                   name="username"
                   required
-                  className="w-full px-2 border-0 focus:outline-none focus:ring-0 text-base"
+                  className="w-full px-2 border-0 focus:outline-none focus:ring-0 text-base bg-white text-gray-900"
                   placeholder="Personal ID"
                   autoComplete="username"
                 />
@@ -98,7 +87,7 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
                   id="password"
                   name="password"
                   required
-                  className="w-full px-2 border-0 focus:outline-none focus:ring-0 text-base"
+                  className="w-full px-2 border-0 focus:outline-none focus:ring-0 text-base bg-white text-gray-900"
                   placeholder=""
                   autoComplete="current-password"
                 />
@@ -284,13 +273,12 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
 
 export default async function Home() {
   // Cookie-Check mit Validierung
-  const token = cookies().get('auth-token')
+  const token = cookies().get('auth-token');
   if (token) {
     try {
-      const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret')
-      const { jwtVerify } = await import('jose')
-      await jwtVerify(token.value, SECRET)
-      redirect('/dashboard')
+      const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+      await jwtVerify(token.value, SECRET);
+      redirect('/dashboard');
     } catch (error) {
       // Token ungültig - ignorieren und Login-Seite anzeigen
       // Cookie wird beim nächsten erfolgreichen Login überschrieben
@@ -298,16 +286,16 @@ export default async function Home() {
   }
 
   // Subdomain aus Header holen
-  const headersList = await import('next/headers').then(m => m.headers())
-  const hostname = headersList.get('host') || ''
-  const subdomain = hostname.split('.')[0].replace(':3000', '')
+  const headersList = headers();
+  const host = headersList.get('host');
+  const subdomain = getSubdomainFromHost(host);
   
-  // Prüfe ob es eine Subdomain ist (nicht localhost oder www)
-  const isSubdomain = hostname.includes('.') && subdomain !== 'localhost' && subdomain !== 'www'
-  
-  if (isSubdomain) {
+  if (subdomain) {
     // Prüfe ob Tenant existiert
-    const tenant = await getTenantBySubdomain(subdomain)
+    const tenant = await prisma.tenant.findUnique({
+      where: { domain: subdomain },
+      select: { id: true, name: true, domain: true }
+    });
     
     if (!tenant) {
       // Tenant existiert nicht!
@@ -352,18 +340,18 @@ export default async function Home() {
             </p>
           </footer>
         </div>
-      )
+      );
     }
 
     // Logo für die Firma holen
-    const logoUrl = getCompanyLogo(subdomain)
+    const logoUrl = getCompanyLogo(subdomain);
 
     // Tenant existiert - zeige Login mit Firmenname und Logo
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
         <LoginForm tenantName={tenant.name} logoUrl={logoUrl} />
       </div>
-    )
+    );
   }
 
   // Hauptdomain (localhost:3000) - Landing Page
@@ -423,5 +411,5 @@ export default async function Home() {
         </p>
       </footer>
     </div>
-  )
+  );
 }

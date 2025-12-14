@@ -18,7 +18,7 @@ export async function getUserFromToken(request: NextRequest): Promise<UserPayloa
     if (!token) return null;
 
     const { payload } = await jwtVerify(token, SECRET);
-    return payload as UserPayload;
+    return payload as unknown as UserPayload;
   } catch (error) {
     console.error('JWT Verification Error:', error);
     return null;

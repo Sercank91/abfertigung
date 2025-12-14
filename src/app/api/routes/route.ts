@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       paramIndex++;
     }
 
-    query += ` ORDER BY r.name ASC`;
+    query += ' ORDER BY r.name ASC';
 
     const routesResult = await pool.query(query, params);
 

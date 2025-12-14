@@ -30,9 +30,9 @@ interface Shipment {
   procedureType: string | null;
   commonSender: Address | null;
   commonReceiver: Address | null;
-  commonOriginCountry: string | null;
-  commonDestCountry: string | null;
-  totalPackages: number | null;
+  commonOriginCountry?: string | null;
+  commonDestCountry?: string | null;
+  totalPackages?: number | null;
   totalGrossWeight: number | null;
   totalNetWeight: number | null;
   totalValue: number | null;

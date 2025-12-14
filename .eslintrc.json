@@ -1,11 +1,13 @@
 {
   "extends": [
     "next/core-web-vitals",
-    "eslint:recommended"
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
   ],
+  "plugins": ["@typescript-eslint"],
   "rules": {
     // 🚨 Fehler (blockiert Build)
-    "no-console": "off",
+    "no-console": "warn",
     "no-unused-vars": "off",
     "@typescript-eslint/no-unused-vars": [
       "warn",
@@ -23,7 +25,7 @@
     "no-debugger": "warn",
 
     // 📝 Code-Style
-    "semi": ["warn", "never"],
+    "semi": ["warn", "always"],
     "quotes": ["warn", "single", { "avoidEscape": true }],
 
     // ⚛️ React Rules

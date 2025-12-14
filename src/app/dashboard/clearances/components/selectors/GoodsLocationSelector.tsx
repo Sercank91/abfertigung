@@ -12,7 +12,7 @@ import { useState } from 'react';
 interface GoodsLocation {
   id: string;
   name: string;
-  code?: string;
+  code: string | null;
   description?: string;
 }
 

@@ -28,7 +28,7 @@ interface Company {
   address: string;
   postalCode: string;
   city: string;
-  guarantees: Array<{ id: string; name: string }>;
+  guarantees?: Array<{ id: string; name: string }>;
 }
 
 interface Route {
@@ -153,7 +153,7 @@ export default function ClearanceForm({ anmNr, userId }: ClearanceFormProps) {
 
   // Derived Data
   const selectedCompany = companies.find((c) => c.id === formData.companyId);
-  const selectedGuarantee = selectedCompany?.guarantees.find((g) => g.id === formData.guaranteeId);
+  const selectedGuarantee = selectedCompany?.guarantees?.find((g) => g.id === formData.guaranteeId);
   const selectedRoute = routes.find((r) => r.id === formData.routeId);
   const selectedGoodsLocation = goodsLocations.find((g) => g.id === formData.goodsLocationId);
   const availableGuarantees = selectedCompany?.guarantees || [];

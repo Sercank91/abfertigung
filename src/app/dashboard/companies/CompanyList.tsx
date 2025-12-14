@@ -294,7 +294,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
               placeholder="Firmen suchen..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 focus:border-[#0076bc] focus:outline-none"
+              className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm pr-8 bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
             />
             <svg
               className="absolute right-2 top-1.5 text-gray-400 pointer-events-none"
@@ -498,7 +498,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. Sönmez Bustas Lojistik"
                   />
                 </div>
@@ -512,7 +512,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                     type="text"
                     value={formData.country}
                     onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="z.B. Türkei"
                   />
                 </div>
@@ -526,7 +526,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                    className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                     placeholder="Straße und Hausnummer"
                   />
                 </div>
@@ -541,7 +541,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                       type="text"
                       value={formData.postalCode}
                       onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       placeholder="16258"
                     />
                   </div>
@@ -553,7 +553,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                       type="text"
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                      className="w-full px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                       placeholder="Bursa"
                     />
                   </div>
@@ -579,7 +579,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                         type="email"
                         value={email}
                         onChange={(e) => updateEmail(index, e.target.value)}
-                        className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                        className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                         placeholder="email@beispiel.com"
                       />
                       {formData.emails.length > 1 && (
@@ -615,7 +615,7 @@ export default function CompanyList({ initialCompanies, availableGuarantees, can
                         type="tel"
                         value={phone}
                         onChange={(e) => updatePhone(index, e.target.value)}
-                        className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm focus:border-[#0076bc] focus:outline-none"
+                        className="flex-1 px-2 py-1 text-sm border border-[#c6c6c6] rounded-sm bg-white text-gray-900 focus:border-[#0076bc] focus:outline-none"
                         placeholder="+49 123 456789"
                       />
                       {formData.phones.length > 1 && (

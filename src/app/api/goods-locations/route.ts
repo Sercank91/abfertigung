@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       paramIndex++;
     }
 
-    query += ` ORDER BY name ASC`;
+    query += ' ORDER BY name ASC';
 
     const result = await pool.query(query, params);
 

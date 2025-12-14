@@ -87,7 +87,7 @@ export async function PUT(
       paramIndex++;
     }
 
-    updateFields.push(`"updatedAt" = NOW()`);
+    updateFields.push('"updatedAt" = NOW()');
     updateValues.push(routeId);
 
     if (updateFields.length > 1) { // mehr als nur updatedAt

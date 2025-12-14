@@ -111,7 +111,7 @@ export default async function EditClearancePage({
 }) {
   const user = await getUser();
 
-  let anmNr = decodeURIComponent(params.anmNr);
+  const anmNr = decodeURIComponent(params.anmNr);
 
   // ✅ Wenn Parameter nur Zahlen sind, könnte es anmNr ODER ID sein
   if (/^\d+$/.test(anmNr)) {
@@ -122,7 +122,7 @@ export default async function EditClearancePage({
       // Nicht als anmNr gefunden - versuche als ID
       try {
         const result = await pool.query(
-          `SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2`,
+          'SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2',
           [parseInt(anmNr), user.tenantId]
         );
 
@@ -176,10 +176,6 @@ export default async function EditClearancePage({
           <ClearanceForm
             anmNr={anmNr}  
             userId={user.id}
-            companies={data.companies}
-            routes={data.routes}
-            goodsLocations={data.goodsLocations}
-            authorizations={data.authorizations}
           />
         </div>
       </div>

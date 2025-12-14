@@ -17,7 +17,7 @@ export async function DELETE(
 
     // Dokument aus Datenbank abrufen, um Dateipfad zu bekommen
     const docResult = await pool.query(
-      `SELECT "filePath" FROM "OcrDocument" WHERE id = $1`,
+      'SELECT "filePath" FROM "OcrDocument" WHERE id = $1',
       [documentId]
     );
 
@@ -32,13 +32,13 @@ export async function DELETE(
 
     // Verknüpfte Shipments und Positionen löschen
     await pool.query(
-      `DELETE FROM "ShipmentPosition" WHERE "shipmentId" IN (SELECT id FROM "Shipment" WHERE "ocrDocumentId" = $1)`,
+      'DELETE FROM "ShipmentPosition" WHERE "shipmentId" IN (SELECT id FROM "Shipment" WHERE "ocrDocumentId" = $1)',
       [documentId]
     );
-    await pool.query(`DELETE FROM "Shipment" WHERE "ocrDocumentId" = $1`, [documentId]);
+    await pool.query('DELETE FROM "Shipment" WHERE "ocrDocumentId" = $1', [documentId]);
 
     // OcrDocument löschen
-    await pool.query(`DELETE FROM "OcrDocument" WHERE id = $1`, [documentId]);
+    await pool.query('DELETE FROM "OcrDocument" WHERE id = $1', [documentId]);
 
     // Datei löschen (falls vorhanden)
     if (filePath && existsSync(filePath)) {

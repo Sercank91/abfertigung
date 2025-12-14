@@ -166,7 +166,7 @@ export function isValidLicensePlate(licensePlate: string): boolean {
   if (!licensePlate) return false;
 
   // Mindestens 2 Zeichen, nur Buchstaben, Zahlen und Bindestriche
-  const regex = /^[A-Z0-9\-]{2,15}$/i;
+  const regex = /^[A-Z0-9-]{2,15}$/i;
   return regex.test(licensePlate);
 }
 
@@ -185,7 +185,7 @@ export function normalizeLicensePlate(licensePlate: string): string {
   return licensePlate
     .toUpperCase()
     .replace(/\s+/g, '-')
-    .replace(/[^A-Z0-9\-]/g, '');
+    .replace(/[^A-Z0-9-]/g, '');
 }
 
 /**

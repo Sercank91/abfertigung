@@ -16,6 +16,7 @@ interface Company {
   postalCode: string;
   city: string;
   country: string;
+  guarantees?: any[];
 }
 
 interface CompanySelectorProps {
