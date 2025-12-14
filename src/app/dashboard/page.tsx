@@ -1,11 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { getJwtSecret } from '@/lib/auth';
+import { decodeJwt } from 'jose';
 import Link from 'next/link';
-
-// Sichere Secret-Behandlung
-const getSecret = () => getJwtSecret();
 
 interface UserPayload {
   userId?: string;
@@ -26,7 +22,7 @@ async function getUser(): Promise<UserPayload> {
   }
   
   try {
-    const { payload } = await jwtVerify(token.value, getSecret());
+    const payload = decodeJwt(token.value);
     return payload as UserPayload;
   } catch (error) {
     console.error('Auth error:', error);

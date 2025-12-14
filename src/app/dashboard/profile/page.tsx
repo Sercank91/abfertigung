@@ -1,12 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { getJwtSecret } from '@/lib/auth';
+import { decodeJwt } from 'jose';
 import { pool } from '@/lib/db';
 import ProfileForm from './ProfileForm';
 import SubHeader from '@/components/SubHeader';
-
-const getSecret = () => getJwtSecret();
 
 async function getUser() {
   const cookieStore = cookies();
@@ -14,7 +11,7 @@ async function getUser() {
   if (!token) redirect('/');
   
   try {
-    const { payload } = await jwtVerify(token.value, getSecret());
+    const payload = decodeJwt(token.value);
     
     // Hole die aktuellen Daten aus der Datenbank (nicht nur aus JWT)
     const result = await pool.query(

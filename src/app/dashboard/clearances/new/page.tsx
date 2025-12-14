@@ -1,10 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { getJwtSecret } from '@/lib/auth';
+import { decodeJwt } from 'jose';
 import ClearanceForm from '../ClearanceForm';
-
-const getSecret = () => getJwtSecret();
 
 async function getUser() {
   const cookieStore = cookies();
@@ -12,7 +9,7 @@ async function getUser() {
   if (!token) redirect('/');
   
   try {
-    const { payload } = await jwtVerify(token.value, getSecret());
+    const payload = decodeJwt(token.value);
     return payload as any;
   } catch (error) {
     redirect('/');

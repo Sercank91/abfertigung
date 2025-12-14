@@ -1,11 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { getJwtSecret } from '@/lib/auth';
+import { decodeJwt } from 'jose';
 import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
-
-const getSecret = () => getJwtSecret();
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {
@@ -19,7 +16,7 @@ async function getUser() {
   if (!token) redirect('/');
   
   try {
-    const { payload } = await jwtVerify(token.value, getSecret());
+    const payload = decodeJwt(token.value);
     return payload as any;
   } catch (error) {
     redirect('/');
