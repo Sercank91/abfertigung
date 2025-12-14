@@ -3,13 +3,13 @@ import { pool } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { hashPassword } from '@/lib/password';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 async function getUserFromToken(request: NextRequest) {
   try {
     const token = request.cookies.get('auth-token')?.value;
     if (!token) return null;
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as { id: string; tenantId: string; role: string };
   } catch (error) {
     return null;

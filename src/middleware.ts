@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 export async function middleware(request: NextRequest) {
   const hostname = request.headers.get('host') || request.nextUrl.hostname || '';
@@ -25,7 +25,7 @@ export async function middleware(request: NextRequest) {
 
   if (token) {
     try {
-      const { payload } = await jwtVerify(token.value, SECRET);
+      const { payload } = await jwtVerify(token.value, getSecret());
       user = payload;
     } catch (error) {
       // Token ungültig

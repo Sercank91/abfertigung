@@ -6,11 +6,11 @@ import UserList from './UserList';
 import SubHeader from '@/components/SubHeader';
 
 // Environment validation
-if (!process.env.JWT_SECRET) {
-  console.error('JWT_SECRET is not configured');
-}
+// if (!process.env.JWT_SECRET) {
+//   console.error('JWT_SECRET is not configured');
+// }
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 // Types
 interface JWTPayload {
@@ -52,7 +52,7 @@ const getUser = cache(async (): Promise<JWTPayload> => {
   }
   
   try {
-    const { payload } = await jwtVerify(token.value, SECRET);
+    const { payload } = await jwtVerify(token.value, getSecret());
     return payload as JWTPayload;
   } catch (error) {
     console.error('JWT verification failed:', error instanceof Error ? error.message : 'Unknown error');

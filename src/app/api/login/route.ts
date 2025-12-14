@@ -8,10 +8,7 @@ import logger from '@/lib/logger';
 import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
-if (!process.env.JWT_SECRET) {
-  throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
-}
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+// Check moved to inside handler to prevent build crashes
 
 /**
  * POST /api/login
@@ -20,6 +17,11 @@ const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
  * Subdomain bestimmt welcher Tenant (Firma) sich anmeldet.
  */
 export const POST = handleApiError(async (request: NextRequest) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('❌ CRITICAL: JWT_SECRET environment variable is missing!');
+  }
+  const SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+
   // ✅ Input-Validierung mit Zod
   const body = await request.json();
   const { username, password } = validateData(LoginSchema, body);

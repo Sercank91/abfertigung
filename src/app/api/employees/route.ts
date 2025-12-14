@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { jwtVerify } from 'jose';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 async function getUserFromToken(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ async function getUserFromToken(request: NextRequest) {
       return null;
     }
 
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     console.log('✅ Token verifiziert:', payload);
     return payload as { id: string; tenantId: string; email: string; role: string };
   } catch (error) {

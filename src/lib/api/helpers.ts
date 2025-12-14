@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import type { UserPayload, ApiResponse, ApiError } from '@/types';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 /**
  * Extrahiert und validiert den User aus dem JWT-Token
@@ -17,7 +17,7 @@ export async function getUserFromToken(request: NextRequest): Promise<UserPayloa
     const token = request.cookies.get('auth-token')?.value;
     if (!token) return null;
 
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     return payload as unknown as UserPayload;
   } catch (error) {
     console.error('JWT Verification Error:', error);

@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 import Link from 'next/link';
 
 // Sichere Secret-Behandlung
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 interface UserPayload {
   userId?: string;
@@ -25,7 +25,7 @@ async function getUser(): Promise<UserPayload> {
   }
   
   try {
-    const { payload } = await jwtVerify(token.value, SECRET);
+    const { payload } = await jwtVerify(token.value, getSecret());
     return payload as UserPayload;
   } catch (error) {
     console.error('Auth error:', error);

@@ -4,7 +4,7 @@ import { jwtVerify } from 'jose';
 import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {
@@ -18,7 +18,7 @@ async function getUser() {
   if (!token) redirect('/');
   
   try {
-    const { payload } = await jwtVerify(token.value, SECRET);
+    const { payload } = await jwtVerify(token.value, getSecret());
     return payload as any;
   } catch (error) {
     redirect('/');

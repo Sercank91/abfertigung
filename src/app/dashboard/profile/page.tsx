@@ -5,7 +5,7 @@ import { pool } from '@/lib/db';
 import ProfileForm from './ProfileForm';
 import SubHeader from '@/components/SubHeader';
 
-const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
 
 async function getUser() {
   const cookieStore = cookies();
@@ -13,7 +13,7 @@ async function getUser() {
   if (!token) redirect('/');
   
   try {
-    const { payload } = await jwtVerify(token.value, SECRET);
+    const { payload } = await jwtVerify(token.value, getSecret());
     
     // Hole die aktuellen Daten aus der Datenbank (nicht nur aus JWT)
     const result = await pool.query(

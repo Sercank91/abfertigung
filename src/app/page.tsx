@@ -276,8 +276,8 @@ export default async function Home() {
   const token = cookies().get('auth-token');
   if (token) {
     try {
-      const SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
-      await jwtVerify(token.value, SECRET);
+      const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+      await jwtVerify(token.value, getSecret());
       redirect('/dashboard');
     } catch (error) {
       // Token ungültig - ignorieren und Login-Seite anzeigen

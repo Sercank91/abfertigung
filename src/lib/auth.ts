@@ -1,8 +1,10 @@
 import { jwtVerify, SignJWT } from 'jose';
 
-const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fallback-secret'
-);
+export function getJwtSecret() {
+  return new TextEncoder().encode(
+    process.env.JWT_SECRET || 'fallback-secret'
+  );
+}
 
 export interface TokenPayload {
   userId: string;
@@ -20,7 +22,7 @@ export interface TokenPayload {
  */
 export async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as TokenPayload;
   } catch (error) {
     console.error('Token verification failed:', error);
@@ -36,7 +38,7 @@ export async function createToken(payload: TokenPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(SECRET);
+    .sign(getJwtSecret());
 
   return token;
 }
