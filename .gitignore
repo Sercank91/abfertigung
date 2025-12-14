@@ -188,3 +188,6 @@ prisma/*.db
 
 # Package manager caches (optional)
 pnpm-lock.yaml
+
+# Large reference datasets (imported into DB; keep out of git)
+customs_offices/
