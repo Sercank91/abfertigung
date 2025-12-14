@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getSubdomainFromHost } from '@/lib/tenant';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 
 // Firmenlogos basierend auf Subdomain
 function getCompanyLogo(subdomain: string) {
@@ -276,7 +277,7 @@ export default async function Home() {
   const token = cookies().get('auth-token');
   if (token) {
     try {
-      const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+      const getSecret = () => getJwtSecret();
       await jwtVerify(token.value, getSecret());
       redirect('/dashboard');
     } catch (error) {

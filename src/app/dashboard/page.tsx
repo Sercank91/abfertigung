@@ -1,10 +1,11 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 import Link from 'next/link';
 
 // Sichere Secret-Behandlung
-const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => getJwtSecret();
 
 interface UserPayload {
   userId?: string;

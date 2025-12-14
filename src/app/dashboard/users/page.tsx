@@ -1,16 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 import { cache } from 'react';
 import UserList from './UserList';
 import SubHeader from '@/components/SubHeader';
 
-// Environment validation
-// if (!process.env.JWT_SECRET) {
-//   console.error('JWT_SECRET is not configured');
-// }
-
-const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => getJwtSecret();
 
 // Types
 interface JWTPayload {

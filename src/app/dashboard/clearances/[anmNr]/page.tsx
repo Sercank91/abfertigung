@@ -1,10 +1,11 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
 
-const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => getJwtSecret();
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {

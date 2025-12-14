@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 import { generateNextAnmNr } from '@/lib/anmnr';
 import type { UserPayload, ApiResponse, ApiError } from '@/types';
 
-const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => getJwtSecret();
 
 /**
  * Extrahiert und validiert den User aus dem JWT-Token

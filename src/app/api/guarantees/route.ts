@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { jwtVerify } from 'jose';
+import { getJwtSecret } from '@/lib/auth';
 
-const getSecret = () => new TextEncoder().encode(process.env.JWT_SECRET || 'fallback-secret');
+const getSecret = () => getJwtSecret();
 
 async function getUserFromToken(request: NextRequest) {
   try {

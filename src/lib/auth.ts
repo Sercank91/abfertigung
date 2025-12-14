@@ -1,9 +1,10 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 export function getJwtSecret() {
-  return new TextEncoder().encode(
-    process.env.JWT_SECRET || 'fallback-secret'
-  );
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is not defined');
+  }
+  return new TextEncoder().encode(process.env.JWT_SECRET);
 }
 
 export interface TokenPayload {
