@@ -178,7 +178,7 @@ const searchText = [
     take: 10,
     orderBy: { code: 'asc' },
   });
-  samples.forEach(office => {
+  samples.forEach((office: (typeof samples)[number]) => {
     console.log(`   ${office.code} - ${office.name} (${office.city || 'N/A'})`);
   });
   
