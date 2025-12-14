@@ -1,4 +1,3 @@
-@'
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -18,4 +17,3 @@ images:
 options:
   logging: CLOUD_LOGGING_ONLY
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
-'@ | Set-Content -Encoding UTF8 cloudbuild.yaml
