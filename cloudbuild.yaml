@@ -6,6 +6,7 @@ steps:
       [
         "build",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
+        "--cache-from", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache",
         "-t", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:$SHORT_SHA",
         "-t", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache",
         "."
