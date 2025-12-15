@@ -84,15 +84,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Prüfe ob Username bereits existiert
+    // Prüfe ob Username bereits existiert (pro Tenant!)
     const existingUser = await pool.query(
-      'SELECT id FROM "User" WHERE username = $1',
-      [username]
+      'SELECT id FROM "User" WHERE username = $1 AND "tenantId" = $2',
+      [username, user.tenantId]
     );
 
     if (existingUser.rows.length > 0) {
       return NextResponse.json(
-        { error: 'Dieser Benutzername existiert bereits' },
+        { error: 'Dieser Benutzername existiert bereits in Ihrer Firma' },
         { status: 400 }
       );
     }
