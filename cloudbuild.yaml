@@ -6,7 +6,6 @@ steps:
       [
         "build",
         "--build-arg", "BUILDKIT_INLINE_CACHE=1",
-        "--cache-from", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache",
         "-t", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:$SHORT_SHA",
         "-t", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache",
         "."
@@ -14,16 +13,22 @@ steps:
 
   - name: gcr.io/cloud-builders/docker
     args:
-      ["push", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:$SHORT_SHA"]
+      [
+        "push",
+        "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:$SHORT_SHA"
+      ]
 
   - name: gcr.io/cloud-builders/docker
     args:
-      ["push", "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache"]
+      [
+        "push",
+        "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:buildcache"
+      ]
 
 images:
   - "europe-west1-docker.pkg.dev/$PROJECT_ID/abfertigung-repo/abfertigung:$SHORT_SHA"
 
 options:
+  machineType: E2_HIGHCPU_8
   logging: CLOUD_LOGGING_ONLY
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
-  machineType: E2_HIGHCPU_8
