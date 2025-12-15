@@ -4,6 +4,7 @@ import { decodeJwt } from 'jose';
 import { cache } from 'react';
 import UserList from './UserList';
 import SubHeader from '@/components/SubHeader';
+import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 // Types
 interface JWTPayload {
@@ -60,7 +61,7 @@ async function getUsers(token: string | undefined): Promise<User[]> {
   }
   
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     
     // Validate URL
     const url = new URL('/api/users', baseUrl);

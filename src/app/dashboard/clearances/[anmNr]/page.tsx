@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
+import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {
@@ -25,7 +26,7 @@ async function getUser() {
 
 async function getInitialData() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     const cookieStore = cookies();
     const token = cookieStore.get('auth-token');
     
@@ -75,7 +76,7 @@ async function getInitialData() {
 // ✅ NEU: Prüfe ob AnmNr existiert via API
 async function checkClearanceExists(anmNr: string, tenantId: string) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     const cookieStore = cookies();
     const token = cookieStore.get('auth-token');
     

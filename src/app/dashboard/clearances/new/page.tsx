@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import ClearanceForm from '../ClearanceForm';
+import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -19,7 +20,7 @@ async function getUser() {
 // Lade initiale Daten
 async function getInitialData() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     const cookieStore = cookies();
     const token = cookieStore.get('auth-token');
     

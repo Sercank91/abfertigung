@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import ClearanceList from './ClearanceList';
 import SubHeader from '@/components/SubHeader';
+import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -19,7 +20,7 @@ async function getUser() {
 
 async function getClearances() {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     const cookieStore = cookies();
     const token = cookieStore.get('auth-token');
     
