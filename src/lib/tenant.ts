@@ -1,6 +1,5 @@
 export function getSubdomainFromHost(host: string | null): string | null {
   if (!host) return null;
-
   const hostname = host.split(":")[0].toLowerCase(); // remove :port
 
   // 1. Exakte Matches für Main Domains (kein Tenant)
@@ -26,15 +25,14 @@ export function getSubdomainFromHost(host: string | null): string | null {
   }
 
   // 4. Production Subdomains (*.abfertigung.io)
-  const rootDomain = "abfertigung.io";
-  if (hostname.endsWith(`.${rootDomain}`)) {
-    const sub = hostname.slice(0, -(`.${rootDomain}`.length));
+  const rootDomain = ".abfertigung.io";
+  if (hostname.endsWith(rootDomain)) {
+    const sub = hostname.slice(0, -rootDomain.length);
     if (sub === "www") return null;
     return sub || null;
   }
 
-  // 5. Fallback: Wenn wir hier sind, ist es eine unbekannte Domain.
-  // Wir nehmen an, der erste Teil ist die Subdomain, außer es ist www.
+  // 5. Fallback: Unbekannte Domain
   const parts = hostname.split(".");
   if (parts.length >= 3) {
     if (parts[0] === "www") return null;
@@ -43,5 +41,3 @@ export function getSubdomainFromHost(host: string | null): string | null {
 
   return null;
 }
-
-
