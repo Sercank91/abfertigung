@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import ClearanceForm from '../ClearanceForm';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -17,61 +16,11 @@ async function getUser() {
   }
 }
 
-// Lade initiale Daten
-async function getInitialData() {
-  try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    // Firmen laden
-    const companiesRes = await fetch(`${baseUrl}/api/companies`, {
-      headers: { 'Cookie': `auth-token=${token?.value}` },
-      cache: 'no-store',
-    });
-    const companiesData = await companiesRes.json();
-    
-    // Routen laden
-    const routesRes = await fetch(`${baseUrl}/api/routes`, {
-      headers: { 'Cookie': `auth-token=${token?.value}` },
-      cache: 'no-store',
-    });
-    const routesData = await routesRes.json();
-    
-    // Warenorte laden
-    const goodsLocationsRes = await fetch(`${baseUrl}/api/goods-locations`, {
-      headers: { 'Cookie': `auth-token=${token?.value}` },
-      cache: 'no-store',
-    });
-    const goodsLocationsData = await goodsLocationsRes.json();
-    
-    // Bewilligungen laden
-    const authorizationsRes = await fetch(`${baseUrl}/api/authorizations`, {
-      headers: { 'Cookie': `auth-token=${token?.value}` },
-      cache: 'no-store',
-    });
-    const authorizationsData = await authorizationsRes.json();
-    
-    return {
-      companies: companiesData.companies || [],
-      routes: routesData.routes || [],
-      goodsLocations: goodsLocationsData.goodsLocations || [],
-      authorizations: authorizationsData.authorizations || [],
-    };
-  } catch (error) {
-    console.error('Fehler beim Laden der Daten:', error);
-    return {
-      companies: [],
-      routes: [],
-      goodsLocations: [],
-      authorizations: [],
-    };
-  }
-}
+// ClearanceForm lädt seine Daten selbst via Client-Side fetch
+// Das funktioniert, weil relative URLs auf dem Client korrekt aufgelöst werden
 
 export default async function NewClearancePage() {
   const user = await getUser();
-  const initialData = await getInitialData();
   
   return (
     <>

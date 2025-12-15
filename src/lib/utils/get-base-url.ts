@@ -15,6 +15,15 @@ export function getBaseUrl(): string {
   try {
     const headersList = headers();
     
+    // Debug: Log alle relevanten Headers (nur in Development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[getBaseUrl] Headers:', {
+        host: headersList.get('host'),
+        'x-forwarded-host': headersList.get('x-forwarded-host'),
+        'x-forwarded-proto': headersList.get('x-forwarded-proto'),
+      });
+    }
+    
     // Cloudflare/Proxy Support: X-Forwarded-Host und X-Forwarded-Proto bevorzugen
     const forwardedHost = headersList.get('x-forwarded-host');
     const forwardedProto = headersList.get('x-forwarded-proto');
@@ -24,7 +33,7 @@ export function getBaseUrl(): string {
     const actualHost = forwardedHost?.split(',')[0]?.trim() || host;
     
     if (!actualHost) {
-      // Fallback für Build-Zeit
+      console.warn('[getBaseUrl] Kein Host gefunden, verwende Fallback');
       return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     }
     
@@ -39,10 +48,16 @@ export function getBaseUrl(): string {
       protocol = forwardedProto.split(',')[0]?.trim() || 'https';
     }
     
-    return `${protocol}://${actualHost}`;
-  } catch {
+    const baseUrl = `${protocol}://${actualHost}`;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[getBaseUrl] Ermittelte URL:', baseUrl);
+    }
+    
+    return baseUrl;
+  } catch (error) {
     // Fallback wenn headers() nicht verfügbar ist (z.B. während Build)
+    console.warn('[getBaseUrl] Fehler beim Ermitteln der URL:', error);
     return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
   }
 }
-

@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
+import { pool } from '@/lib/db';
 import AuthorizationList from './AuthorizationList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -18,25 +18,17 @@ async function getUser() {
   }
 }
 
-async function getAuthorizations() {
+// Direkte Datenbankabfrage statt HTTP-Request
+async function getAuthorizations(tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/authorizations`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return data.authorizations || [];
+    const result = await pool.query(
+      `SELECT id, name, code, description, "isActive", "createdAt", "updatedAt"
+       FROM "Authorization" 
+       WHERE "tenantId" = $1 
+       ORDER BY name`,
+      [tenantId]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Bewilligungen:', error);
     return [];
@@ -45,7 +37,7 @@ async function getAuthorizations() {
 
 export default async function AuthorizationsPage() {
   const user = await getUser();
-  const authorizations = await getAuthorizations();
+  const authorizations = user.tenantId ? await getAuthorizations(user.tenantId) : [];
   
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   

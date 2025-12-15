@@ -2,9 +2,9 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import { cache } from 'react';
+import { pool } from '@/lib/db';
 import UserList from './UserList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 // Types
 interface JWTPayload {
@@ -30,11 +30,6 @@ interface User {
   createdAt: string;
 }
 
-interface ApiResponse {
-  users?: User[];
-  error?: string;
-}
-
 // Cache for multiple calls in same request
 const getUser = cache(async (): Promise<JWTPayload> => {
   const cookieStore = cookies();
@@ -54,58 +49,30 @@ const getUser = cache(async (): Promise<JWTPayload> => {
   }
 });
 
-async function getUsers(token: string | undefined): Promise<User[]> {
-  if (!token) {
-    console.error('No token provided for fetching users');
-    return [];
-  }
-  
+// Direkte Datenbankabfrage statt HTTP-Request
+async function getUsers(tenantId: string): Promise<User[]> {
   try {
-    const baseUrl = getBaseUrl();
-    
-    // Validate URL
-    const url = new URL('/api/users', baseUrl);
-    
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-    
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Cookie': `auth-token=${token}`,
-        'Accept': 'application/json',
-      },
-      cache: 'no-store', // Always fresh data for user management
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
+    const result = await pool.query(
+      `SELECT 
+        id,
+        username,
+        email,
+        "firstName",
+        "lastName",
+        phone,
+        role,
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      FROM "User" 
+      WHERE "tenantId" = $1 
+      ORDER BY "lastName", "firstName"`,
+      [tenantId]
+    );
 
-    if (!response.ok) {
-      console.error(`Failed to fetch users: HTTP ${response.status}`);
-      return [];
-    }
-
-    const data: ApiResponse = await response.json();
-    
-    // Validate response structure
-    if (!Array.isArray(data.users)) {
-      console.error('Invalid response structure:', data);
-      return [];
-    }
-    
-    return data.users;
+    return result.rows;
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.name === 'AbortError') {
-        console.error('Request timeout while fetching users');
-      } else {
-        console.error('Error fetching users:', error.message);
-      }
-    } else {
-      console.error('Unknown error fetching users:', error);
-    }
+    console.error('Error fetching users from database:', error);
     return [];
   }
 }
@@ -133,10 +100,8 @@ export default async function UsersPage() {
     redirect('/dashboard');
   }
   
-  // Fetch users list
-  const cookieStore = cookies();
-  const token = cookieStore.get('auth-token');
-  const users = await getUsers(token?.value);
+  // Fetch users list directly from database
+  const users = user.tenantId ? await getUsers(user.tenantId) : [];
   
   // Provide defaults for missing values
   const tenantName = user.tenantName || 'System';

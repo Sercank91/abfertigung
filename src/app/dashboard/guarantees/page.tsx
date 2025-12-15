@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
+import { pool } from '@/lib/db';
 import GuaranteeList from './GuaranteeList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -18,24 +18,17 @@ async function getUser() {
   }
 }
 
-async function getGuarantees() {
+// Direkte Datenbankabfrage statt HTTP-Request
+async function getGuarantees(tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/guarantees`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    return await response.json();
+    const result = await pool.query(
+      `SELECT id, name, description, "isActive", "createdAt", "updatedAt"
+       FROM "Guarantee" 
+       WHERE "tenantId" = $1 
+       ORDER BY name`,
+      [tenantId]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Bürgschaften:', error);
     return [];
@@ -44,7 +37,7 @@ async function getGuarantees() {
 
 export default async function GuaranteesPage() {
   const user = await getUser();
-  const guarantees = await getGuarantees();
+  const guarantees = user.tenantId ? await getGuarantees(user.tenantId) : [];
   
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   

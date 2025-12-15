@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import ClearanceList from './ClearanceList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -18,34 +17,11 @@ async function getUser() {
   }
 }
 
-async function getClearances() {
-  try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/clearances`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return data.clearances || [];
-  } catch (error) {
-    console.error('Fehler beim Laden der Abfertigungen:', error);
-    return [];
-  }
-}
+// ClearanceList lädt seine Daten selbst via Client-Side fetch
+// Das funktioniert, weil relative URLs auf dem Client korrekt aufgelöst werden
 
 export default async function ClearancesPage() {
   const user = await getUser();
-  const clearances = await getClearances();
   
   return (
     <>

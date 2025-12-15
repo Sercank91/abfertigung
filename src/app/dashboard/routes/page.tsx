@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
+import { pool } from '@/lib/db';
 import RouteList from './RouteList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -18,50 +18,52 @@ async function getUser() {
   }
 }
 
-async function getRoutes() {
+// Direkte Datenbankabfrage statt HTTP-Request
+async function getRoutes(tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/routes`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return data.routes || [];
+    const result = await pool.query(
+      `SELECT r.id, r.name, r.countries, r.description, r."isActive", r."createdAt", r."updatedAt",
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', rto.id,
+                    'order', rto."order",
+                    'customsOffice', json_build_object(
+                      'id', co.id,
+                      'code', co.code,
+                      'name', co.name,
+                      'countryCode', co."countryCode"
+                    )
+                  ) ORDER BY rto."order"
+                ) FILTER (WHERE rto.id IS NOT NULL),
+                '[]'
+              ) as "transitOffices"
+       FROM "Route" r
+       LEFT JOIN "RouteTransitOffice" rto ON r.id = rto."routeId"
+       LEFT JOIN "CustomsOffice" co ON rto."customsOfficeId" = co.id
+       WHERE r."tenantId" = $1 
+       GROUP BY r.id
+       ORDER BY r.name`,
+      [tenantId]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Routen:', error);
     return [];
   }
 }
 
+// Direkte Datenbankabfrage für Zollämter
 async function getCustomsOffices() {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/customs-offices?limit=200`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return data.offices || [];
+    const result = await pool.query(
+      `SELECT id, code, name, "countryCode", city
+       FROM "CustomsOffice" 
+       WHERE "isActive" = true
+       ORDER BY name
+       LIMIT 200`
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Zollämter:', error);
     return [];
@@ -70,7 +72,7 @@ async function getCustomsOffices() {
 
 export default async function RoutesPage() {
   const user = await getUser();
-  const routes = await getRoutes();
+  const routes = user.tenantId ? await getRoutes(user.tenantId) : [];
   const customsOffices = await getCustomsOffices();
   
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';

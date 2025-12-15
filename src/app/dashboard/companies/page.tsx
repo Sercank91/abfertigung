@@ -1,9 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
+import { pool } from '@/lib/db';
 import CompanyList from './CompanyList';
 import SubHeader from '@/components/SubHeader';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 async function getUser() {
   const cookieStore = cookies();
@@ -18,50 +18,47 @@ async function getUser() {
   }
 }
 
-async function getCompanies() {
+// Direkte Datenbankabfrage statt HTTP-Request
+async function getCompanies(tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/companies`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return Array.isArray(data.companies) ? data.companies : (Array.isArray(data) ? data : []);
+    const result = await pool.query(
+      `SELECT c.id, c.name, c.country, c.address, c."postalCode", c.city, 
+              c.emails, c.phones, c."isActive", c."createdAt", c."updatedAt",
+              COALESCE(
+                json_agg(
+                  json_build_object(
+                    'id', g.id,
+                    'name', g.name
+                  )
+                ) FILTER (WHERE g.id IS NOT NULL),
+                '[]'
+              ) as guarantees
+       FROM "Company" c
+       LEFT JOIN "CompanyGuarantee" cg ON c.id = cg."companyId"
+       LEFT JOIN "Guarantee" g ON cg."guaranteeId" = g.id
+       WHERE c."tenantId" = $1 
+       GROUP BY c.id
+       ORDER BY c.name`,
+      [tenantId]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Firmen:', error);
     return [];
   }
 }
 
-async function getGuarantees() {
+// Direkte Datenbankabfrage für Bürgschaften
+async function getGuarantees(tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/guarantees`, {
-      headers: {
-        'Cookie': `auth-token=${token?.value}`,
-      },
-      cache: 'no-store',
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json();
-    return Array.isArray(data.guarantees) ? data.guarantees : (Array.isArray(data) ? data : []);
+    const result = await pool.query(
+      `SELECT id, name, description, "isActive"
+       FROM "Guarantee" 
+       WHERE "tenantId" = $1 AND "isActive" = true
+       ORDER BY name`,
+      [tenantId]
+    );
+    return result.rows;
   } catch (error) {
     console.error('Fehler beim Laden der Bürgschaften:', error);
     return [];
@@ -70,8 +67,8 @@ async function getGuarantees() {
 
 export default async function CompaniesPage() {
   const user = await getUser();
-  const companies = await getCompanies();
-  const guarantees = await getGuarantees();
+  const companies = user.tenantId ? await getCompanies(user.tenantId) : [];
+  const guarantees = user.tenantId ? await getGuarantees(user.tenantId) : [];
   
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   

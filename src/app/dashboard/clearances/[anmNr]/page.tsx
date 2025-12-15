@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import { pool } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
-import { getBaseUrl } from '@/lib/utils/get-base-url';
 
 // ✅ Helper für AnmNr Formatierung
 function formatAnmNr(anmNr: string): string {
@@ -24,79 +23,14 @@ async function getUser() {
   }
 }
 
-async function getInitialData() {
-  try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const [companiesRes, routesRes, goodsLocationsRes, authorizationsRes] = await Promise.all([
-      fetch(`${baseUrl}/api/companies`, {
-        headers: { 'Cookie': `auth-token=${token?.value}` },
-        cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/routes`, {
-        headers: { 'Cookie': `auth-token=${token?.value}` },
-        cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/goods-locations`, {
-        headers: { 'Cookie': `auth-token=${token?.value}` },
-        cache: 'no-store',
-      }),
-      fetch(`${baseUrl}/api/authorizations`, {
-        headers: { 'Cookie': `auth-token=${token?.value}` },
-        cache: 'no-store',
-      }),
-    ]);
-    
-    const [companiesData, routesData, goodsLocationsData, authorizationsData] = await Promise.all([
-      companiesRes.json(),
-      routesRes.json(),
-      goodsLocationsRes.json(),
-      authorizationsRes.json(),
-    ]);
-    
-    return {
-      companies: companiesData.companies || [],
-      routes: routesData.routes || [],
-      goodsLocations: goodsLocationsData.goodsLocations || [],
-      authorizations: authorizationsData.authorizations || [],
-    };
-  } catch (error) {
-    console.error('Fehler beim Laden der Daten:', error);
-    return {
-      companies: [],
-      routes: [],
-      goodsLocations: [],
-      authorizations: [],
-    };
-  }
-}
-
-// ✅ NEU: Prüfe ob AnmNr existiert via API
+// ✅ Direkte Datenbankabfrage: Prüfe ob AnmNr existiert
 async function checkClearanceExists(anmNr: string, tenantId: string) {
   try {
-    const baseUrl = getBaseUrl();
-    const cookieStore = cookies();
-    const token = cookieStore.get('auth-token');
-    
-    const response = await fetch(`${baseUrl}/api/clearances/${anmNr}`, {
-      headers: { 'Cookie': `auth-token=${token?.value}` },
-      cache: 'no-store',
-    });
-    
-    if (!response.ok) {
-      return false;
-    }
-    
-    const clearance = await response.json();
-    
-    // Prüfe ob Clearance zum Tenant gehört
-    if (clearance.tenantId !== tenantId) {
-      return false;
-    }
-    
-    return true;
+    const result = await pool.query(
+      'SELECT id FROM "Clearance" WHERE "anmNr" = $1 AND "tenantId" = $2',
+      [anmNr, tenantId]
+    );
+    return result.rows.length > 0;
   } catch (error) {
     console.error('Fehler beim Prüfen der Abfertigung:', error);
     return false;
@@ -151,8 +85,6 @@ export default async function EditClearancePage({
       redirect('/dashboard/clearances');
     }
   }
-  
-  const data = await getInitialData();
 
   return (
     <>
