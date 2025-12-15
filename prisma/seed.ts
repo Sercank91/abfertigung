@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -35,7 +35,7 @@ async function main() {
   // ===== VERAG USERS =====
   
   await prisma.user.upsert({
-    where: { username: 'admin' },
+    where: { tenantId_username: { tenantId: verag.id, username: 'admin' } },
     update: {
       password: await hashPassword('admin123')
     },
@@ -52,7 +52,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: admin (Verag)')
 
   await prisma.user.upsert({
-    where: { username: 'schichtleiter' },
+    where: { tenantId_username: { tenantId: verag.id, username: 'schichtleiter' } },
     update: {
       password: await hashPassword('schicht123')
     },
@@ -70,7 +70,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: schichtleiter (Verag)')
 
   await prisma.user.upsert({
-    where: { username: 'sercan' },
+    where: { tenantId_username: { tenantId: verag.id, username: 'sercan' } },
     update: {
       password: await hashPassword('sercan123')
     },
@@ -88,7 +88,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: sercan (Verag)')
 
   await prisma.user.upsert({
-    where: { username: 'skaragoz' },
+    where: { tenantId_username: { tenantId: verag.id, username: 'skaragoz' } },
     update: {
       password: await hashPassword('skaragoz123')
     },
@@ -108,7 +108,7 @@ async function main() {
   // ===== DSV USERS =====
 
   await prisma.user.upsert({
-    where: { username: 'dsv-admin' },
+    where: { tenantId_username: { tenantId: dsv.id, username: 'dsv-admin' } },
     update: {
       password: await hashPassword('dsv123')
     },
@@ -125,7 +125,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: dsv-admin (DSV)')
 
   await prisma.user.upsert({
-    where: { username: 'dsv-schichtleiter' },
+    where: { tenantId_username: { tenantId: dsv.id, username: 'dsv-schichtleiter' } },
     update: {
       password: await hashPassword('dsv-schicht123')
     },
@@ -143,7 +143,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: dsv-schichtleiter (DSV)')
 
   await prisma.user.upsert({
-    where: { username: 'dsv-mitarbeiter' },
+    where: { tenantId_username: { tenantId: dsv.id, username: 'dsv-mitarbeiter' } },
     update: {
       password: await hashPassword('dsv-mit123')
     },
@@ -161,7 +161,7 @@ async function main() {
   console.log('✅ User erstellt/aktualisiert: dsv-mitarbeiter (DSV)')
 
   await prisma.user.upsert({
-    where: { username: 'ahmet' },
+    where: { tenantId_username: { tenantId: dsv.id, username: 'ahmet' } },
     update: {
       password: await hashPassword('ahmet123')
     },
@@ -193,7 +193,7 @@ async function main() {
   console.log('   Schichtleiter: username: ahmet              | password: ahmet123')
   console.log('   Mitarbeiter:   username: dsv-mitarbeiter    | password: dsv-mit123')
   console.log('')
-  console.log('🔐 Alle Passwörter sind jetzt mit bcrypt gehasht!')
+  console.log('🔐 Alle Passwörter sind jetzt mit bcryptjs gehasht!')
 }
 
 main()
