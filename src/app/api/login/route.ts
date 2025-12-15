@@ -7,6 +7,7 @@ import { LoginSchema, validateData } from '@/lib/validators';
 import logger from '@/lib/logger';
 import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
 import { getJwtSecret } from '@/lib/auth';
+import { getSubdomainFromHost } from '@/lib/tenant';
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
 // Check moved to inside handler to prevent build crashes
@@ -29,8 +30,16 @@ export const POST = handleApiError(async (request: NextRequest) => {
   const body = await request.json();
   const { username, password } = validateData(LoginSchema, body);
     
-  const hostname = request.headers.get('host') || '';
-  const subdomain = hostname.split('.')[0].replace(':3000', '');
+  // Host ermitteln (Cloudflare Support)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const hostHeader = request.headers.get('host');
+  const host = forwardedHost?.split(',')[0] || hostHeader || '';
+  
+  const subdomain = getSubdomainFromHost(host);
+
+  if (!subdomain) {
+    throw new NotFoundError('Login nur über Firmen-Subdomain möglich');
+  }
 
   // ✅ Strukturiertes Logging
   logger.auth.loginAttempt(username, subdomain);

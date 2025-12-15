@@ -288,7 +288,11 @@ export default async function Home() {
 
   // Subdomain aus Header holen
   const headersList = headers();
-  const host = headersList.get('host');
+  // Cloudflare/Proxy Support: X-Forwarded-Host bevorzugen
+  const forwardedHost = headersList.get('x-forwarded-host');
+  const hostHeader = headersList.get('host');
+  const host = forwardedHost?.split(',')[0] || hostHeader || '';
+  
   const subdomain = getSubdomainFromHost(host);
   
   if (subdomain) {

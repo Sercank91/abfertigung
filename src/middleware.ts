@@ -2,22 +2,19 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
+import { getSubdomainFromHost } from '@/lib/tenant';
 
 const getSecret = () => getJwtSecret();
 
 export async function middleware(request: NextRequest) {
-  const hostname = request.headers.get('host') || request.nextUrl.hostname || '';
-  const hostnameWithoutPort = hostname.split(':')[0];
-  let hostTenantId = null;
-
-  if (hostnameWithoutPort === 'localhost' || hostnameWithoutPort === 'www.localhost' || hostnameWithoutPort === 'abfertigung.io' || hostnameWithoutPort === 'www.abfertigung.io') {
-    hostTenantId = null;
-  } else if (hostnameWithoutPort.endsWith('.localhost')) {
-    hostTenantId = hostnameWithoutPort.split('.')[0];
-  } else if (hostnameWithoutPort.endsWith('.abfertigung.io')) {
-    hostTenantId = hostnameWithoutPort.split('.')[0];
-  }
-
+  // Host ermitteln (Cloudflare Support)
+  // X-Forwarded-Host hat Vorrang, falls vorhanden (Original Domain vom User)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const hostHeader = request.headers.get('host');
+  // Nehme den ersten Host aus x-forwarded-host (falls kommagetrennt) oder fallback auf host header
+  const hostname = forwardedHost?.split(',')[0] || hostHeader || request.nextUrl.hostname || '';
+  
+  const hostTenantId = getSubdomainFromHost(hostname);
   const isMainDomain = hostTenantId === null;
 
   // Prüfe ob User eingeloggt ist

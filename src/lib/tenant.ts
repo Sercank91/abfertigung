@@ -3,28 +3,45 @@ export function getSubdomainFromHost(host: string | null): string | null {
 
   const hostname = host.split(":")[0].toLowerCase(); // remove :port
 
-  // localhost without subdomain
-  if (hostname === "localhost") return null;
+  // 1. Exakte Matches für Main Domains (kein Tenant)
+  if (
+    hostname === "localhost" ||
+    hostname === "www.localhost" ||
+    hostname === "abfertigung.io" ||
+    hostname === "www.abfertigung.io"
+  ) {
+    return null;
+  }
 
-  // verag.localhost
+  // 2. Cloud Run Domains ignorieren (kein Tenant)
+  if (hostname.endsWith(".run.app")) {
+    return null;
+  }
+
+  // 3. Localhost Subdomains
   if (hostname.endsWith(".localhost")) {
     const sub = hostname.replace(".localhost", "");
+    if (sub === "www") return null;
     return sub || null;
   }
 
-  // verag.abfertigung.io (production later)
+  // 4. Production Subdomains (*.abfertigung.io)
   const rootDomain = "abfertigung.io";
-  if (hostname === rootDomain) return null;
   if (hostname.endsWith(`.${rootDomain}`)) {
     const sub = hostname.slice(0, -(`.${rootDomain}`.length));
+    if (sub === "www") return null;
     return sub || null;
   }
 
-  // fallback: take first label if multi-label host
-  // e.g. "sub.domain.com" -> "sub"
+  // 5. Fallback: Wenn wir hier sind, ist es eine unbekannte Domain.
+  // Wir nehmen an, der erste Teil ist die Subdomain, außer es ist www.
   const parts = hostname.split(".");
-  // For localhost (parts=1) or domain.com (parts=2), we return null via above checks or here?
-  // If we have "something.unknown.com", parts=3.
-  return parts.length >= 3 ? parts[0] : null;
+  if (parts.length >= 3) {
+    if (parts[0] === "www") return null;
+    return parts[0];
+  }
+
+  return null;
 }
+
 
