@@ -210,9 +210,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ NEU: Generiere Anmeldenummer!
-    const anmNr = await generateNextAnmNr();
-    
+    // 🔒 SECURITY CHECK (P0): IDOR Prevention
+    // Prüfe ob Company und Guarantee wirklich dem Tenant gehören
+    const securityCheck = await pool.query(
+      `SELECT 
+        (SELECT COUNT(*) FROM "Company" WHERE id = $1 AND "tenantId" = $3) as company_valid,
+        (SELECT COUNT(*) FROM "Guarantee" WHERE id = $2 AND "tenantId" = $3) as guarantee_valid`,
+      [companyId, guaranteeId, user.tenantId]
+    );
+
+    if (securityCheck.rows[0].company_valid == 0) {
+      return createErrorResponse('Ungültige Firma (Zugriff verweigert)', 403);
+    }
+    if (securityCheck.rows[0].guarantee_valid == 0) {
+      return createErrorResponse('Ungültige Bürgschaft (Zugriff verweigert)', 403);
+    }
+
+    // ✅ NEU: Generiere Anmeldenummer (Tenant-Scoped)!
+    const anmNr = await generateNextAnmNr(user.tenantId);
+
     console.log(`🎯 Neue Clearance: AnmNr ${anmNr}, LRN ${lrn}`);
 
     // ✅ NEU: Clearance anlegen - MIT anmNr UND ZOLLSTELLEN!
