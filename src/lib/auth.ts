@@ -1,10 +1,11 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 export function getJwtSecret() {
-  if (!process.env.JWT_SECRET) {
-    throw new Error('CRITICAL: JWT_SECRET environment variable is not defined.');
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET is missing. Set it as environment variable in Cloud Run.');
   }
-  return new TextEncoder().encode(process.env.JWT_SECRET);
+  return new TextEncoder().encode(secret);
 }
 
 export interface TokenPayload {
