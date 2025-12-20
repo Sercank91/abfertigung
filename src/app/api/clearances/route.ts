@@ -210,10 +210,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // ✅ NEU: Generiere Anmeldenummer!
+    // 🔒 SECURITY CHECK (P0): IDOR Prevention
+    // Prüfe ob referenzierte Entitäten dem Tenant gehören
+    const company = await pool.query(
+      'SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $2',
+      [companyId, user.tenantId]
+    );
+    if (company.rowCount === 0) {
+      return createErrorResponse('Ungültige Firma (Zugriff verweigert)', 403);
+    }
+
+    const guarantee = await pool.query(
+      'SELECT 1 FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
+      [guaranteeId, user.tenantId]
+    );
+    if (guarantee.rowCount === 0) {
+      return createErrorResponse('Ungültige Bürgschaft (Zugriff verweigert)', 403);
+    }
+
+    if (routeId) {
+      const route = await pool.query(
+        'SELECT 1 FROM "Route" WHERE id = $1 AND "tenantId" = $2',
+        [routeId, user.tenantId]
+      );
+      if (route.rowCount === 0) {
+        return createErrorResponse('Ungültige Route (Zugriff verweigert)', 403);
+      }
+    }
+
+    if (goodsLocationId) {
+      const goodsLocation = await pool.query(
+        'SELECT 1 FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
+        [goodsLocationId, user.tenantId]
+      );
+      if (goodsLocation.rowCount === 0) {
+        return createErrorResponse('Ungültiger Warenort (Zugriff verweigert)', 403);
+      }
+    }
+
+    if (authorizationId) {
+      const authorization = await pool.query(
+        'SELECT 1 FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
+        [authorizationId, user.tenantId]
+      );
+      if (authorization.rowCount === 0) {
+        return createErrorResponse('Ungültige Bewilligung (Zugriff verweigert)', 403);
+      }
+    }
+
+    // ✅ NEU: Generiere Anmeldenummer (Tenant-Scoped)!
     const anmNr = await generateNextAnmNr();
-    
-    console.log(`🎯 Neue Clearance: AnmNr ${anmNr}, LRN ${lrn}`);
 
     // ✅ NEU: Clearance anlegen - MIT anmNr UND ZOLLSTELLEN!
     const result = await pool.query(
@@ -299,8 +345,6 @@ export async function POST(request: NextRequest) {
         user.id,
       ]
     );
-
-    console.log('✅ Clearance angelegt:', result.rows[0].anmNr);
 
     return NextResponse.json({
       message: 'Clearance erfolgreich angelegt',

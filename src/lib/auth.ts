@@ -1,13 +1,11 @@
 import { jwtVerify, SignJWT } from 'jose';
 
 export function getJwtSecret() {
-  if (!process.env.JWT_SECRET) {
-    console.warn('WARN: JWT_SECRET is not defined, using fallback secret.');
-    // Return a fallback secret to allow build to pass.
-    // In production runtime, JWT_SECRET must be set.
-    return new TextEncoder().encode('fallback-secret-for-build-only');
+  const secret = process.env.JWT_SECRET?.trim();
+  if (!secret) {
+    throw new Error('JWT_SECRET is missing. Set it as environment variable in Cloud Run.');
   }
-  return new TextEncoder().encode(process.env.JWT_SECRET);
+  return new TextEncoder().encode(secret);
 }
 
 export interface TokenPayload {

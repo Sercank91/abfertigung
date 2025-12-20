@@ -242,8 +242,6 @@ export async function PUT(
     const clearanceId = checkClearance.rows[0].id;
     const body = await request.json();
 
-    console.log('✏️ Abfertigung bearbeiten:', anmNr);
-
     // Map declarationDate zu registrationDate
     const registrationDate = body.registrationDate || body.declarationDate;
 
@@ -280,6 +278,68 @@ export async function PUT(
         { error: 'Bei vereinfachtem Verfahren sind Warenort und Bewilligung Pflichtfelder' },
         { status: 400 }
       );
+    }
+
+    // 🔒 SECURITY CHECK (P0): IDOR Prevention
+    const company = await pool.query(
+      'SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $2',
+      [body.companyId, user.tenantId]
+    );
+    if (company.rowCount === 0) {
+      return NextResponse.json(
+        { error: 'Ungültige Firma (Zugriff verweigert)' },
+        { status: 403 }
+      );
+    }
+
+    const guarantee = await pool.query(
+      'SELECT 1 FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
+      [body.guaranteeId, user.tenantId]
+    );
+    if (guarantee.rowCount === 0) {
+      return NextResponse.json(
+        { error: 'Ungültige Bürgschaft (Zugriff verweigert)' },
+        { status: 403 }
+      );
+    }
+
+    if (body.routeId) {
+      const route = await pool.query(
+        'SELECT 1 FROM "Route" WHERE id = $1 AND "tenantId" = $2',
+        [body.routeId, user.tenantId]
+      );
+      if (route.rowCount === 0) {
+        return NextResponse.json(
+          { error: 'Ungültige Route (Zugriff verweigert)' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (body.goodsLocationId) {
+      const goodsLocation = await pool.query(
+        'SELECT 1 FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
+        [body.goodsLocationId, user.tenantId]
+      );
+      if (goodsLocation.rowCount === 0) {
+        return NextResponse.json(
+          { error: 'Ungültiger Warenort (Zugriff verweigert)' },
+          { status: 403 }
+        );
+      }
+    }
+
+    if (authorizationId) {
+      const authorization = await pool.query(
+        'SELECT 1 FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
+        [authorizationId, user.tenantId]
+      );
+      if (authorization.rowCount === 0) {
+        return NextResponse.json(
+          { error: 'Ungültige Bewilligung (Zugriff verweigert)' },
+          { status: 403 }
+        );
+      }
     }
 
     // ✅ NEU: UPDATE mit Zollstellen!
@@ -355,8 +415,6 @@ export async function PUT(
         user.id,
       ]
     );
-
-    console.log('✅ Abfertigung aktualisiert');
 
     // Lade vollständige Daten für Response (mit Zollstellen!)
     const fullClearance = await pool.query(
