@@ -8,11 +8,14 @@ datasource db {
 }
 
 model AnmNrSequence {
-  jahr         Int      @id
+  jahr         Int
+  tenantId     String
   letzteNummer Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  @@id([jahr, tenantId])
   @@map("AnmNrSequence")
 }
 

@@ -11,67 +11,66 @@ import { pool } from './db';
  * 
  * Format: JJNNN (z.B. 25001, 25002, 25003, ...)
  */
-export async function generateNextAnmNr(): Promise<string> {
+export async function generateNextAnmNr(tenantId: string): Promise<string> {
   const client = await pool.connect();
-  
+
   try {
     // ✅ Start Transaction mit höchstem Isolation Level
     await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-    
+
     const currentYear = new Date().getFullYear();
-    
-    console.log(`🎯 Generiere AnmNr für Jahr ${currentYear}...`);
-    
-    // ✅ Hole Sequenz-Eintrag MIT ROW LOCK
-    // FOR UPDATE = Keine andere Transaction kann diese Zeile gleichzeitig lesen/ändern
+
+    console.log(`🎯 Generiere AnmNr für Jahr ${currentYear}, Tenant ${tenantId}...`);
+
+    // ✅ Hole Sequenz-Eintrag MIT ROW LOCK (Scoped per Tenant)
     const result = await client.query(
       `SELECT "letzteNummer" 
        FROM "AnmNrSequence" 
-       WHERE jahr = $1 
+       WHERE jahr = $1 AND "tenantId" = $2
        FOR UPDATE`,
-      [currentYear]
+      [currentYear, tenantId]
     );
-    
+
     let letzteNummer: number;
-    
+
     if (result.rows.length === 0) {
-      // ✅ Neues Jahr - erstelle Eintrag
-      console.log(`📅 Neues Jahr ${currentYear} - erstelle Sequenz-Eintrag`);
-      
+      // ✅ Neues Jahr oder neuer Tenant - erstelle Eintrag
+      console.log(`📅 Initialisiere Sequenz für Tenant ${tenantId}, Jahr ${currentYear}`);
+
       await client.query(
-        `INSERT INTO "AnmNrSequence" (jahr, "letzteNummer", "createdAt", "updatedAt") 
-         VALUES ($1, 0, NOW(), NOW())`,
-        [currentYear]
+        `INSERT INTO "AnmNrSequence" (jahr, "tenantId", "letzteNummer", "createdAt", "updatedAt") 
+         VALUES ($1, $2, 0, NOW(), NOW())`,
+        [currentYear, tenantId]
       );
-      
+
       letzteNummer = 0;
     } else {
       letzteNummer = result.rows[0].letzteNummer;
-      console.log(`📊 Aktuelle Nummer: ${letzteNummer}`);
+      console.log(`📊 Aktuelle Nummer (Tenant ${tenantId}): ${letzteNummer}`);
     }
-    
+
     // ✅ Erhöhe Nummer
     const neueNummer = letzteNummer + 1;
-    
-    // ✅ Update Sequenz (die Zeile ist noch gesperrt!)
+
+    // ✅ Update Sequenz
     await client.query(
       `UPDATE "AnmNrSequence" 
        SET "letzteNummer" = $1, "updatedAt" = NOW() 
-       WHERE jahr = $2`,
-      [neueNummer, currentYear]
+       WHERE jahr = $2 AND "tenantId" = $3`,
+      [neueNummer, currentYear, tenantId]
     );
-    
+
     // ✅ Formatiere AnmNr: JJNNN
     const yearShort = currentYear.toString().slice(-2);
     const anmNr = `${yearShort}${neueNummer.toString().padStart(3, '0')}`;
-    
+
     // ✅ Commit Transaction
     await client.query('COMMIT');
-    
+
     console.log(`✅ AnmNr erfolgreich generiert: ${anmNr} (Nummer ${neueNummer}/${currentYear})`);
-    
+
     return anmNr;
-    
+
   } catch (error) {
     // ❌ Fehler - Rollback!
     await client.query('ROLLBACK');
@@ -106,7 +105,7 @@ export function formatAnmNr(anmNr: string): string {
  */
 export function isValidAnmNr(anmNr: string): boolean {
   if (!anmNr) return false;
-  
+
   // Format: JJNNN (5 Zeichen, alle Ziffern)
   const regex = /^\d{5}$/;
   return regex.test(anmNr);
@@ -122,12 +121,12 @@ export async function getCurrentSequenceInfo(): Promise<{
 }> {
   try {
     const currentYear = new Date().getFullYear();
-    
+
     const result = await pool.query(
       'SELECT "letzteNummer" FROM "AnmNrSequence" WHERE jahr = $1',
       [currentYear]
     );
-    
+
     if (result.rows.length === 0) {
       return {
         jahr: currentYear,
@@ -135,12 +134,12 @@ export async function getCurrentSequenceInfo(): Promise<{
         naechsteAnmNr: `${currentYear.toString().slice(-2)}001`
       };
     }
-    
+
     const letzteNummer = result.rows[0].letzteNummer;
     const yearShort = currentYear.toString().slice(-2);
     const naechsteNummer = letzteNummer + 1;
     const naechsteAnmNr = `${yearShort}${naechsteNummer.toString().padStart(3, '0')}`;
-    
+
     return {
       jahr: currentYear,
       letzteNummer,
