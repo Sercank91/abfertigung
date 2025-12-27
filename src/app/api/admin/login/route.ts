@@ -16,8 +16,16 @@ export async function POST(request: NextRequest) {
     const SECRET = getJwtSecret();
 
     // 🔒 SECURITY: Prüfe dass Request von Admin-Domain kommt
-    const hostname = request.nextUrl.hostname;
+    let hostname = request.nextUrl.hostname;
     const hostHeader = request.headers.get('host');
+    
+    // Cloud Run Fix: In Production, verwende Host-Header wenn hostname ungültig ist
+    if (process.env.NODE_ENV === 'production' && hostHeader) {
+      if (hostname === '0.0.0.0' || hostname.endsWith('.run.app')) {
+        hostname = hostHeader.toLowerCase().split(':')[0];
+      }
+    }
+    
     const { isValidHost, isAdminMode, reason } = parseTenantFromHostname(hostname, hostHeader);
 
     if (!isValidHost || !isAdminMode) {

@@ -32,8 +32,15 @@ export const POST = handleApiError(async (request: NextRequest) => {
     
   // 🔒 SECURITY: Verwende zentrale Tenant-Validierung
   // NIEMALS x-forwarded-host verwenden - verhindert Host Header Spoofing
-  const hostname = request.nextUrl.hostname;
+  let hostname = request.nextUrl.hostname;
   const hostHeader = request.headers.get('host');
+  
+  // Cloud Run Fix: In Production, verwende Host-Header wenn hostname ungültig ist
+  if (process.env.NODE_ENV === 'production' && hostHeader) {
+    if (hostname === '0.0.0.0' || hostname.endsWith('.run.app')) {
+      hostname = hostHeader.toLowerCase().split(':')[0];
+    }
+  }
   
   // 🧪 DEV-ONLY: Debug-Logging für localhost-Entwicklung
   if (process.env.NODE_ENV !== 'production' && hostname.includes('localhost')) {
@@ -44,8 +51,6 @@ export const POST = handleApiError(async (request: NextRequest) => {
     });
   }
   
-  // 🧪 DEV-ONLY: Host-Header wird nur für localhost-Subdomain-Fallback verwendet
-  // In Production wird hostHeader ignoriert (siehe parseTenantFromHostname Implementation)
   const { tenant: subdomain, isValidHost, reason } = parseTenantFromHostname(hostname, hostHeader);
 
   // Blockiere ungültige Hosts
