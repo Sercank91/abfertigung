@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
+import { parseTenantFromHostname } from '@/lib/tenant';
 
 // ✅ JWT Secret Validierung (Moved to function scope to avoid build-time errors)
 // if (!process.env.JWT_SECRET) { ... }
@@ -37,35 +38,50 @@ export interface AuthUser {
  * ```
  */
 export async function getUserFromToken(request: NextRequest): Promise<AuthUser | null> {
+  // 🔒 SECURITY: JWT_SECRET MUSS in production vorhanden sein
+  let SECRET;
   try {
-    const SECRET = getJwtSecret();
+    SECRET = getJwtSecret();
+  } catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[SECURITY] CRITICAL: JWT_SECRET fehlt in Production!');
+      throw new Error('Server configuration error');
+    }
+    console.error('[DEV] JWT_SECRET fehlt:', error);
+    return null;
+  }
 
-    const token = request.cookies.get('auth-token')?.value;
+  const token = request.cookies.get('auth-token')?.value;
 
-    if (!token) {
+  if (!token) {
+    // Kein Token => nicht eingeloggt (normal)
+    return null;
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, SECRET);
+
+    // 🔒 SECURITY: Verwende zentrale Tenant-Validierung
+    // NIEMALS manuell host/x-forwarded-host parsen - verhindert Host Header Spoofing
+    const hostname = request.nextUrl?.hostname || '';
+    const { tenant: hostTenantId, isValidHost } = parseTenantFromHostname(hostname);
+
+    // Blockiere ungültige Hosts
+    if (!isValidHost) {
+      console.error(`[SECURITY] API-Auth: Ungültiger Host blockiert: ${hostname}`);
       return null;
     }
 
-    const { payload } = await jwtVerify(token, SECRET);
-
-    const hostname = request.headers.get('host') || '';
-    const hostnameWithoutPort = hostname.split(':')[0];
-    let hostTenantId = null;
-
-    if (hostnameWithoutPort !== 'localhost' && hostnameWithoutPort !== 'www.localhost' && hostnameWithoutPort !== 'abfertigung.io' && hostnameWithoutPort !== 'www.abfertigung.io') {
-      if (hostnameWithoutPort.endsWith('.localhost')) hostTenantId = hostnameWithoutPort.split('.')[0];
-      else if (hostnameWithoutPort.endsWith('.abfertigung.io')) hostTenantId = hostnameWithoutPort.split('.')[0];
-    }
-
-    // Cross-Tenant Check
+    // Cross-Tenant Check: User darf nur auf seinen eigenen Tenant zugreifen
     if (hostTenantId && (payload as any).tenantSlug && hostTenantId !== (payload as any).tenantSlug) {
+      console.warn(`[SECURITY] Cross-Tenant Zugriff blockiert: User ${(payload as any).tenantSlug} → Host ${hostTenantId}`);
       return null;
     }
 
     return payload as unknown as AuthUser;
   } catch (error) {
-    // Token ist ungültig oder abgelaufen
-    console.error('Token verification failed:', error);
+    // Token vorhanden aber ungültig/abgelaufen
+    console.error('[AUTH] Token verification failed:', error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }

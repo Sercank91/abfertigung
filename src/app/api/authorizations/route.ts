@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -25,24 +25,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
     }
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
-        id,
-        name,
-        description,
-        code,
-        "isActive",
-        "createdAt",
-        "updatedAt"
-      FROM "Authorization" 
-      WHERE "tenantId" = $1 
-      ORDER BY name`,
+        a.id,
+        a.name,
+        a.description,
+        a.code,
+        a."isActive",
+        a."createdAt",
+        a."updatedAt",
+        COUNT(c.id) as clearance_count
+      FROM "Authorization" a
+      LEFT JOIN "Clearance" c ON a.id = c."authorizationId" AND c."tenantId" = $1
+      WHERE a."tenantId" = $1 AND a."isActive" = true
+      GROUP BY a.id
+      ORDER BY a.name`,
       [user.tenantId]
     );
 
+    // Format für Frontend
+    const authorizations = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      code: row.code,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      _count: {
+        clearances: parseInt(row.clearance_count)
+      }
+    }));
+
     return NextResponse.json({
-      authorizations: result.rows,
-      count: result.rows.length
+      authorizations: authorizations,
+      count: authorizations.length
     });
 
   } catch (error) {
@@ -76,7 +94,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prüfe ob Name bereits existiert
-    const existingAuth = await pool.query(
+    const existingAuth = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Authorization" WHERE "tenantId" = $1 AND name = $2',
       [user.tenantId, name]
     );
@@ -89,7 +108,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Bewilligung anlegen
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `INSERT INTO "Authorization" (
         id,
         "tenantId",

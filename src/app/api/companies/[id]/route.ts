@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -19,8 +19,10 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelne Firma abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
+  
   try {
     const user = await getUserFromToken(request);
     
@@ -32,7 +34,8 @@ export async function GET(
     }
 
     // Firma mit Bürgschaften laden
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         c.id,
         c.name,
@@ -83,8 +86,10 @@ export async function GET(
 // PUT - Firma bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
+  
   try {
     const user = await getUserFromToken(request);
     
@@ -104,7 +109,8 @@ export async function PUT(
     }
 
     // Prüfe ob Firma existiert
-    const checkCompany = await pool.query(
+    const checkCompany = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Company" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -159,14 +165,9 @@ export async function PUT(
     console.log('✏️ Firma bearbeiten:', params.id);
     console.log('📋 Gültige Bürgschaften-IDs:', validGuaranteeIds);
 
-    // Start Transaction
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
-
-      // Firma aktualisieren
-      const companyResult = await client.query(
+    // Firma aktualisieren
+    const companyResult = await queryTenant(
+      user.tenantId,
         `UPDATE "Company" SET
           name = $1,
           country = $2,
@@ -204,53 +205,59 @@ export async function PUT(
         ]
       );
 
-      const company = companyResult.rows[0];
+    const company = companyResult.rows[0];
 
-      // Alte Bürgschaften-Verknüpfungen löschen
-      await client.query(
-        'DELETE FROM "CompanyGuarantee" WHERE "companyId" = $1',
-        [params.id]
+    // Alte Bürgschaften-Verknüpfungen löschen (mit tenantId-Filter für Security)
+    await queryTenant(
+      user.tenantId,
+      `DELETE FROM "CompanyGuarantee" 
+       WHERE "companyId" = $1 
+       AND "companyId" IN (
+         SELECT id FROM "Company" WHERE "tenantId" = $2
+       )`,
+      [params.id, user.tenantId]
+    );
+
+    // ✅ FIX: Neue Bürgschaften verknüpfen - nur gültige IDs
+    // Mit tenantId-Validierung für Security
+    for (const guaranteeId of validGuaranteeIds) {
+      console.log('🔗 Verknüpfe Bürgschaft:', guaranteeId);
+      await queryTenant(
+        user.tenantId,
+        `INSERT INTO "CompanyGuarantee" (
+          id,
+          "companyId",
+          "guaranteeId",
+          "createdAt"
+        ) 
+        SELECT gen_random_uuid(), $1, $2, NOW()
+        WHERE EXISTS (
+          SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $3
+        )
+        AND EXISTS (
+          SELECT 1 FROM "Guarantee" WHERE id = $2 AND "tenantId" = $3
+        )`,
+        [params.id, guaranteeId, user.tenantId]
       );
-
-      // ✅ FIX: Neue Bürgschaften verknüpfen - nur gültige IDs
-      for (const guaranteeId of validGuaranteeIds) {
-        console.log('🔗 Verknüpfe Bürgschaft:', guaranteeId);
-        await client.query(
-          `INSERT INTO "CompanyGuarantee" (
-            id,
-            "companyId",
-            "guaranteeId",
-            "createdAt"
-          ) VALUES (gen_random_uuid(), $1, $2, NOW())`,
-          [params.id, guaranteeId]
-        );
-      }
-
-      await client.query('COMMIT');
-
-      console.log('✅ Firma aktualisiert');
-
-      // Bürgschaften für Response laden
-      const guaranteesResult = await client.query(
-        `SELECT g.id, g.name 
-         FROM "Guarantee" g
-         INNER JOIN "CompanyGuarantee" cg ON g.id = cg."guaranteeId"
-         WHERE cg."companyId" = $1
-         ORDER BY g.name`,
-        [params.id]
-      );
-
-      return NextResponse.json({
-        ...company,
-        guarantees: guaranteesResult.rows
-      });
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
     }
+
+    console.log('✅ Firma aktualisiert');
+
+    // Bürgschaften für Response laden
+    const guaranteesResult = await queryTenant(
+      user.tenantId,
+      `SELECT g.id, g.name 
+       FROM "Guarantee" g
+       INNER JOIN "CompanyGuarantee" cg ON g.id = cg."guaranteeId"
+       WHERE cg."companyId" = $1 AND g."tenantId" = $2
+       ORDER BY g.name`,
+      [params.id, user.tenantId]
+    );
+
+    return NextResponse.json({
+      ...company,
+      guarantees: guaranteesResult.rows
+    });
 
   } catch (error) {
     console.error('❌ Fehler beim Aktualisieren der Firma:', error);
@@ -264,8 +271,10 @@ export async function PUT(
 // DELETE - Firma löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
+  
   try {
     const user = await getUserFromToken(request);
     
@@ -285,7 +294,8 @@ export async function DELETE(
     }
 
     // Prüfe ob Firma existiert
-    const checkCompany = await pool.query(
+    const checkCompany = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Company" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -300,7 +310,8 @@ export async function DELETE(
     console.log('🗑️ Firma löschen:', params.id);
 
     // Firma löschen (Cascade löscht automatisch CompanyGuarantee Einträge)
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       'DELETE FROM "Company" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );

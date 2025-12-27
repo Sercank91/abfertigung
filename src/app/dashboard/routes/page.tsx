@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { queryTenant, querySystem } from '@/lib/db';
 import RouteList from './RouteList';
 import SubHeader from '@/components/SubHeader';
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
   
@@ -21,7 +21,8 @@ async function getUser() {
 // Direkte Datenbankabfrage statt HTTP-Request
 async function getRoutes(tenantId: string) {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `SELECT r.id, r.name, r.countries, r.description, r."isActive", r."createdAt", r."updatedAt",
               COALESCE(
                 json_agg(
@@ -53,10 +54,10 @@ async function getRoutes(tenantId: string) {
   }
 }
 
-// Direkte Datenbankabfrage für Zollämter
+// Direkte Datenbankabfrage für Zollämter (System-Query - keine tenantId)
 async function getCustomsOffices() {
   try {
-    const result = await pool.query(
+    const result = await querySystem(
       `SELECT id, code, name, "countryCode", city
        FROM "CustomsOffice" 
        WHERE "isActive" = true
@@ -78,7 +79,7 @@ export default async function RoutesPage() {
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Subheader mit Titel */}
       <SubHeader 
         title={`Routen-Verwaltung - ${user.tenantName}`}
@@ -87,16 +88,18 @@ export default async function RoutesPage() {
       />
 
       {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="max-w-7xl mx-auto">
-          <RouteList 
-            initialRoutes={routes}
-            initialCustomsOffices={customsOffices}
-            canEdit={canEdit}
-            userRole={user.role}
-          />
+      <div className="flex-1 overflow-auto">
+        <div className="px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            <RouteList 
+              initialRoutes={routes}
+              initialCustomsOffices={customsOffices}
+              canEdit={canEdit}
+              userRole={user.role}
+            />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

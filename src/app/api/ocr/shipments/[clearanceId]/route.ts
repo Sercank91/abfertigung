@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 
 /**
  * GET /api/ocr/shipments/[clearanceId]
@@ -8,13 +8,14 @@ import { pool } from '@/lib/db';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clearanceId: string } }
+  context: { params: Promise<{ clearanceId: string }> }
 ) {
+  const params = await context.params;
   try {
     const { clearanceId } = params;
 
     // Alle Shipments für diese Clearance laden
-    const shipmentsResult = await pool.query(
+    const shipmentsResult = await querySystem(
       `SELECT s.*,
          d.id as "ocrDocId", d."fileName" as "ocrDocFileName",
          d.status as "ocrDocStatus", d."processedAt" as "ocrDocProcessedAt"
@@ -28,7 +29,7 @@ export async function GET(
     // Positionen für alle Shipments laden
     const shipments = await Promise.all(
       shipmentsResult.rows.map(async (shipment) => {
-        const positionsResult = await pool.query(
+        const positionsResult = await querySystem(
           `SELECT * FROM "ShipmentPosition"
            WHERE "shipmentId" = $1
            ORDER BY "orderNumber" ASC`,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         id, name, code, description, "isActive", "createdAt", "updatedAt"
       FROM "GoodsLocation"
-      WHERE "tenantId" = $1 AND "isActive" = true
+      WHERE "tenantId" = $1
     `;
     const params: any[] = [tenantId];
     let paramIndex = 2;
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
     query += ' ORDER BY name ASC';
 
-    const result = await pool.query(query, params);
+    const result = await queryTenant(tenantId, query, params);
 
     return NextResponse.json({ goodsLocations: result.rows });
   } catch (error) {
@@ -94,7 +94,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prüfe ob Name bereits existiert
-    const existing = await pool.query(
+    const existing = await queryTenant(
+      tenantId,
       'SELECT id FROM "GoodsLocation" WHERE "tenantId" = $1 AND name = $2',
       [tenantId, name.trim()]
     );
@@ -107,7 +108,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Warenort erstellen
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `INSERT INTO "GoodsLocation" (id, "tenantId", name, code, description, "isActive", "createdAt", "updatedAt")
        VALUES (gen_random_uuid(), $1, $2, $3, $4, true, NOW(), NOW())
        RETURNING id, name, code, description, "isActive", "createdAt", "updatedAt"`,

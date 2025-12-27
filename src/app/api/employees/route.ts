@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
 
     console.log('📋 Lade Mitarbeiter für Tenant:', user.tenantId);
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         id,
         "firstName",
@@ -101,7 +102,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Mitarbeiter anlegen
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `INSERT INTO "Employee" (
         id,
         "tenantId",

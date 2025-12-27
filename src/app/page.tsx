@@ -5,7 +5,8 @@ import { getSubdomainFromHost } from '@/lib/tenant';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
-// Firmenlogos basierend auf Subdomain
+// Diese Funktion wird nicht mehr benötigt - Logo kommt aus der DB
+// Wird aber beibehalten für Rückwärtskompatibilität falls logoUrl in DB null ist
 function getCompanyLogo(subdomain: string) {
   const logos: { [key: string]: string } = {
     'verag': 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg',
@@ -274,7 +275,7 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
 
 export default async function Home() {
   // Cookie-Check mit Validierung
-  const token = cookies().get('auth-token');
+  const token = (await cookies()).get('auth-token');
   if (token) {
     try {
       const getSecret = () => getJwtSecret();
@@ -286,20 +287,20 @@ export default async function Home() {
     }
   }
 
-  // Subdomain aus Header holen
-  const headersList = headers();
-  // Cloudflare/Proxy Support: X-Forwarded-Host bevorzugen
-  const forwardedHost = headersList.get('x-forwarded-host');
+  // 🔒 SECURITY NOTE: Server Components haben kein request.url
+  // Wir nutzen hier den Host-Header nur für NON-SECURITY Zwecke (UI Anzeige)
+  // Alle Security-relevanten Checks passieren in middleware.ts und API routes!
+  const headersList = await headers();
   const hostHeader = headersList.get('host');
-  const host = forwardedHost?.split(',')[0] || hostHeader || '';
+  const host = hostHeader || '';
   
   const subdomain = getSubdomainFromHost(host);
   
   if (subdomain) {
-    // Prüfe ob Tenant existiert
+    // Prüfe ob Tenant existiert und Status
     const tenant = await prisma.tenant.findUnique({
       where: { domain: subdomain },
-      select: { id: true, name: true, domain: true }
+      select: { id: true, name: true, domain: true, status: true, logoUrl: true }
     });
     
     if (!tenant) {
@@ -348,10 +349,104 @@ export default async function Home() {
       );
     }
 
-    // Logo für die Firma holen
-    const logoUrl = getCompanyLogo(subdomain);
+    // Prüfe Tenant-Status
+    if (tenant.status === 'deleted') {
+      return (
+        <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
+          <header 
+            style={{ 
+              backgroundColor: '#393939',
+              height: '55px',
+              minHeight: '56px',
+              maxHeight: '56px'
+            }} 
+            className="w-full px-8 shadow-md flex items-center"
+          >
+            <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
+          </header>
+          
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Tenant wurde gelöscht
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Der Tenant <strong>{tenant.name}</strong> wurde gelöscht und ist nicht mehr verfügbar.
+              </p>
+              <p className="text-sm text-gray-500">
+                Bitte kontaktieren Sie den Administrator für weitere Informationen.
+              </p>
+            </div>
+          </div>
 
-    // Tenant existiert - zeige Login mit Firmenname und Logo
+          <footer 
+            style={{ 
+              backgroundColor: '#f2f2f2',
+              borderTop: '1px solid #c6c6c6'
+            }} 
+            className="w-full py-4 px-8 text-right"
+          >
+            <p className="text-gray-600 text-xs">
+              1.0.5v © 2025 MAS Project für Speditionen
+            </p>
+          </footer>
+        </div>
+      );
+    }
+
+    if (tenant.status === 'inactive') {
+      return (
+        <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
+          <header 
+            style={{ 
+              backgroundColor: '#393939',
+              height: '55px',
+              minHeight: '56px',
+              maxHeight: '56px'
+            }} 
+            className="w-full px-8 shadow-md flex items-center"
+          >
+            <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
+          </header>
+          
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <div className="text-6xl mb-4">⏸️</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                Tenant ist deaktiviert
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Der Tenant <strong>{tenant.name}</strong> ist vorübergehend deaktiviert.
+              </p>
+              <p className="text-sm text-gray-500">
+                Bitte kontaktieren Sie den Administrator für weitere Informationen.
+              </p>
+            </div>
+          </div>
+
+          <footer 
+            style={{ 
+              backgroundColor: '#f2f2f2',
+              borderTop: '1px solid #c6c6c6'
+            }} 
+            className="w-full py-4 px-8 text-right"
+          >
+            <p className="text-gray-600 text-xs">
+              1.0.5v © 2025 MAS Project für Speditionen
+            </p>
+          </footer>
+        </div>
+      );
+    }
+
+    // Logo aus DB holen, falls nicht vorhanden Fallback auf hardcoded Logos
+    const logoUrl = tenant.logoUrl || getCompanyLogo(subdomain);
+    
+    // Debug: Log the logo URL
+    console.log(`🖼️ Logo URL for ${tenant.name} (${subdomain}):`, logoUrl);
+
+    // Tenant existiert und ist aktiv - zeige Login mit Firmenname und Logo
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#ffffff' }}>
         <LoginForm tenantName={tenant.name} logoUrl={logoUrl} />

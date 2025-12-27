@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     console.log('📋 Lade Firmen für Tenant:', user.tenantId);
 
     // ✅ FIX: Firmen mit zugeordneten Bürgschaften laden (direkte Struktur für Frontend)
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         c.id,
         c.name,
@@ -134,97 +135,92 @@ export async function POST(request: NextRequest) {
 
     console.log('➕ Neue Firma:', name);
 
-    // Start Transaction
-    const client = await pool.connect();
-    
-    try {
-      await client.query('BEGIN');
+    // Firma erstellen
+    const companyResult = await queryTenant(
+      user.tenantId,
+      `INSERT INTO "Company" (
+        id,
+        "tenantId",
+        name,
+        country,
+        address,
+        "postalCode",
+        city,
+        emails,
+        phones,
+        "isActive",
+        "createdAt",
+        "updatedAt"
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW()
+      )
+      RETURNING 
+        id,
+        name,
+        country,
+        address,
+        "postalCode",
+        city,
+        emails,
+        phones,
+        "isActive",
+        "createdAt",
+        "updatedAt"`,
+      [
+        user.tenantId,
+        name.trim(),
+        country.trim(),
+        address?.trim() || '',
+        postalCode?.trim() || '',
+        city?.trim() || '',
+        emails || [],
+        phones || []
+      ]
+    );
 
-      // Firma erstellen
-      const companyResult = await client.query(
-        `INSERT INTO "Company" (
+    const company = companyResult.rows[0];
+
+    // Bürgschaften verknüpfen (mit tenantId-Validierung für Security)
+    for (const guaranteeId of guaranteeIds) {
+      await queryTenant(
+        user.tenantId,
+        `INSERT INTO "CompanyGuarantee" (
           id,
-          "tenantId",
-          name,
-          country,
-          address,
-          "postalCode",
-          city,
-          emails,
-          phones,
-          "isActive",
-          "createdAt",
-          "updatedAt"
-        ) VALUES (
-          gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), NOW()
+          "companyId",
+          "guaranteeId",
+          "createdAt"
+        ) 
+        SELECT gen_random_uuid(), $1, $2, NOW()
+        WHERE EXISTS (
+          SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $3
         )
-        RETURNING 
-          id,
-          name,
-          country,
-          address,
-          "postalCode",
-          city,
-          emails,
-          phones,
-          "isActive",
-          "createdAt",
-          "updatedAt"`,
-        [
-          user.tenantId,
-          name.trim(),
-          country.trim(),
-          address?.trim() || '',
-          postalCode?.trim() || '',
-          city?.trim() || '',
-          emails || [],
-          phones || []
-        ]
+        AND EXISTS (
+          SELECT 1 FROM "Guarantee" WHERE id = $2 AND "tenantId" = $3
+        )`,
+        [company.id, guaranteeId, user.tenantId]
       );
-
-      const company = companyResult.rows[0];
-
-      // Bürgschaften verknüpfen
-      for (const guaranteeId of guaranteeIds) {
-        await client.query(
-          `INSERT INTO "CompanyGuarantee" (
-            id,
-            "companyId",
-            "guaranteeId",
-            "createdAt"
-          ) VALUES (gen_random_uuid(), $1, $2, NOW())`,
-          [company.id, guaranteeId]
-        );
-      }
-
-      await client.query('COMMIT');
-
-      console.log('✅ Firma erstellt:', company.id);
-
-      // ✅ FIX: Bürgschaften für Response laden (im DIREKTEN Format - nicht verschachtelt!)
-      const guaranteesResult = await client.query(
-        `SELECT g.id, g.name 
-         FROM "Guarantee" g
-         INNER JOIN "CompanyGuarantee" cg ON g.id = cg."guaranteeId"
-         WHERE cg."companyId" = $1
-         ORDER BY g.name`,
-        [company.id]
-      );
-
-      return NextResponse.json(
-        { 
-          ...company, 
-          guarantees: guaranteesResult.rows
-        }, 
-        { status: 201 }
-      );
-
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
     }
+
+    console.log('✅ Firma erstellt:', company.id);
+
+    // ✅ FIX: Bürgschaften für Response laden (im DIREKTEN FORMAT - nicht verschachtelt!)
+    const guaranteesResult = await queryTenant(
+      user.tenantId,
+      `SELECT g.id, g.name 
+       FROM "Guarantee" g
+       INNER JOIN "CompanyGuarantee" cg ON g.id = cg."guaranteeId"
+       WHERE cg."companyId" = $1 AND g."tenantId" = $2
+       ORDER BY g.name`,
+      [company.id, user.tenantId]
+    );
+
+    return NextResponse.json(
+      { 
+        ...company, 
+        guarantees: guaranteesResult.rows
+      }, 
+      { status: 201 }
+    );
 
   } catch (error) {
     console.error('❌ Fehler beim Erstellen der Firma:', error);

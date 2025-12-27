@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import { getUserFromToken } from '@/lib/api-auth';
 /**
  * GET /api/auth/me
@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get fresh user data from database
-    const result = await pool.query(
+    // Get fresh user data from database (System-Query - User kann aus jedem Tenant sein)
+    const result = await querySystem(
       `SELECT
         id,
         username,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -19,8 +19,9 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelnen Mitarbeiter abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -31,7 +32,8 @@ export async function GET(
       );
     }
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         id,
         "firstName",
@@ -69,8 +71,9 @@ export async function GET(
 // PUT - Mitarbeiter bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -82,7 +85,8 @@ export async function PUT(
     }
 
     // Prüfe ob Mitarbeiter zum Tenant gehört
-    const checkEmployee = await pool.query(
+    const checkEmployee = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Employee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -114,7 +118,8 @@ export async function PUT(
     }
 
     // Mitarbeiter aktualisieren
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `UPDATE "Employee" SET
         "firstName" = $1,
         "lastName" = $2,
@@ -162,8 +167,9 @@ export async function PUT(
 // DELETE - Mitarbeiter löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -175,7 +181,8 @@ export async function DELETE(
     }
 
     // Prüfe ob Mitarbeiter existiert und zum Tenant gehört
-    const checkEmployee = await pool.query(
+    const checkEmployee = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Employee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -190,7 +197,8 @@ export async function DELETE(
     console.log('🗑️ Mitarbeiter löschen:', params.id);
 
     // Prüfe ob Mitarbeiter Berechnungen hat
-    const hasCalculations = await pool.query(
+    const hasCalculations = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Calculation" WHERE "employeeId" = $1 LIMIT 1',
       [params.id]
     );
@@ -203,7 +211,8 @@ export async function DELETE(
     }
 
     // Hard Delete - wenn keine Berechnungen vorhanden
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       'DELETE FROM "Employee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       params.push(limit);
     }
 
-    const result = await pool.query(query, params); // ✅ ERST definieren
+    const result = await querySystem(query, params); // ✅ ERST definieren (System-Query - keine tenantId)
     console.log('🔍 Suche:', search, '| Ergebnisse:', result.rows.length); // ✅ DANN verwenden
 
     return NextResponse.json({ offices: result.rows });

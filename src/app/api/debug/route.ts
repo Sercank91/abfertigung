@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem, queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -37,23 +37,24 @@ export async function GET(request: NextRequest) {
     let currentTenant = null;
 
     try {
-      // Test-Query
-      const testResult = await pool.query('SELECT 1 as test');
+      // Test-Query (System)
+      const testResult = await querySystem('SELECT 1 as test');
       dbStatus = testResult.rows[0]?.test === 1 ? 'connected' : 'error';
       
-      // Zähle Tenants
-      const tenantsResult = await pool.query('SELECT COUNT(*) as count FROM "Tenant"');
+      // Zähle Tenants (System)
+      const tenantsResult = await querySystem('SELECT COUNT(*) as count FROM "Tenant"');
       tenantCount = parseInt(tenantsResult.rows[0]?.count || '0');
       
       // Zähle User für diesen Tenant
-      const usersResult = await pool.query(
+      const usersResult = await queryTenant(
+        user.tenantId,
         'SELECT COUNT(*) as count FROM "User" WHERE "tenantId" = $1',
         [user.tenantId]
       );
       userCount = parseInt(usersResult.rows[0]?.count || '0');
       
-      // Hole aktuellen Tenant
-      const tenantResult = await pool.query(
+      // Hole aktuellen Tenant (System)
+      const tenantResult = await querySystem(
         'SELECT id, name, domain FROM "Tenant" WHERE id = $1',
         [user.tenantId]
       );

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         r.id, r.name, r.description, r.countries, r."isActive", r."createdAt", r."updatedAt"
       FROM "Route" r
-      WHERE r."tenantId" = $1 AND r."isActive" = true
+      WHERE r."tenantId" = $1
     `;
     const params: any[] = [tenantId];
     let paramIndex = 2;
@@ -50,12 +50,13 @@ export async function GET(request: NextRequest) {
 
     query += ' ORDER BY r.name ASC';
 
-    const routesResult = await pool.query(query, params);
+    const routesResult = await queryTenant(tenantId, query, params);
 
     // Für jede Route die Transit-Offices laden
     const routes = await Promise.all(
       routesResult.rows.map(async (route) => {
-        const transitResult = await pool.query(
+        const transitResult = await queryTenant(
+          tenantId,
           `SELECT 
             rto.id, rto."order",
             co.id as "customsOffice.id",
@@ -65,9 +66,10 @@ export async function GET(request: NextRequest) {
             co.city as "customsOffice.city"
           FROM "RouteTransitOffice" rto
           JOIN "CustomsOffice" co ON rto."customsOfficeId" = co.id
-          WHERE rto."routeId" = $1
+          JOIN "Route" r ON rto."routeId" = r.id
+          WHERE rto."routeId" = $1 AND r."tenantId" = $2
           ORDER BY rto."order" ASC`,
-          [route.id]
+          [route.id, tenantId]
         );
 
         // Transform transit offices
@@ -146,7 +148,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prüfe ob Name bereits existiert
-    const existing = await pool.query(
+    const existing = await queryTenant(
+      tenantId,
       'SELECT id FROM "Route" WHERE "tenantId" = $1 AND name = $2',
       [tenantId, name.trim()]
     );
@@ -159,7 +162,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Route erstellen
-    const routeResult = await pool.query(
+    const routeResult = await queryTenant(
+      tenantId,
       `INSERT INTO "Route" (id, "tenantId", name, description, countries, "isActive", "createdAt", "updatedAt")
        VALUES (gen_random_uuid(), $1, $2, $3, $4, true, NOW(), NOW())
        RETURNING id, name, description, countries, "isActive", "createdAt", "updatedAt"`,
@@ -170,18 +174,21 @@ export async function POST(request: NextRequest) {
 
     // Transit-Offices erstellen
     if (transitOfficeIds.length > 0) {
-      const transitValues = transitOfficeIds.map((officeId: string, index: number) => 
-        `(gen_random_uuid(), '${route.id}', '${officeId}', ${index + 1})`
-      ).join(', ');
-
-      await pool.query(
-        `INSERT INTO "RouteTransitOffice" (id, "routeId", "customsOfficeId", "order")
-         VALUES ${transitValues}`
-      );
+      for (let index = 0; index < transitOfficeIds.length; index++) {
+        const officeId = transitOfficeIds[index];
+        await queryTenant(
+          tenantId,
+          `INSERT INTO "RouteTransitOffice" (id, "routeId", "customsOfficeId", "order", "createdAt")
+           SELECT gen_random_uuid(), $1, $2, $3, NOW()
+           FROM "Route" WHERE id = $1 AND "tenantId" = $4`,
+          [route.id, officeId, index + 1, tenantId]
+        );
+      }
     }
 
     // Lade die komplette Route mit Transit-Offices
-    const transitResult = await pool.query(
+    const transitResult = await queryTenant(
+      tenantId,
       `SELECT 
         rto.id, rto."order",
         co.id as "customsOffice.id",
@@ -191,9 +198,10 @@ export async function POST(request: NextRequest) {
         co.city as "customsOffice.city"
       FROM "RouteTransitOffice" rto
       JOIN "CustomsOffice" co ON rto."customsOfficeId" = co.id
-      WHERE rto."routeId" = $1
+      JOIN "Route" r ON rto."routeId" = r.id
+      WHERE rto."routeId" = $1 AND r."tenantId" = $2
       ORDER BY rto."order" ASC`,
-      [route.id]
+      [route.id, tenantId]
     );
 
     const transitOffices = transitResult.rows.map((row) => ({

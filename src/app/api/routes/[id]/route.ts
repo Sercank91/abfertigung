@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -16,11 +16,12 @@ async function getUserFromToken(request: NextRequest) {
   }
 }
 
-// PUT /api/routes/[id] - Route bearbeiten
+// PUT /api/routes/[id] - Route bearbeiten (mit tenantId-Filter)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -44,7 +45,8 @@ export async function PUT(
     const { name, description, countries, transitOfficeIds } = body;
 
     // Prüfe ob Route existiert und zum Tenant gehört
-    const existingRoute = await pool.query(
+    const existingRoute = await queryTenant(
+      tenantId,
       'SELECT id FROM "Route" WHERE id = $1 AND "tenantId" = $2',
       [routeId, tenantId]
     );
@@ -90,48 +92,56 @@ export async function PUT(
 
     updateFields.push('"updatedAt" = NOW()');
     updateValues.push(routeId);
+    updateValues.push(tenantId);
 
     if (updateFields.length > 1) { // mehr als nur updatedAt
       const updateQuery = `
         UPDATE "Route"
         SET ${updateFields.join(', ')}
-        WHERE id = $${paramIndex}
+        WHERE id = $${paramIndex} AND "tenantId" = $${paramIndex + 1}
         RETURNING id, name, description, countries, "isActive", "createdAt", "updatedAt"
       `;
 
-      await pool.query(updateQuery, updateValues);
+      await queryTenant(tenantId, updateQuery, updateValues);
     }
 
     // Update Transit-Offices wenn angegeben
     if (transitOfficeIds && Array.isArray(transitOfficeIds)) {
-      // Lösche alte Transit-Offices
-      await pool.query(
-        'DELETE FROM "RouteTransitOffice" WHERE "routeId" = $1',
-        [routeId]
+      // Lösche alte Transit-Offices (mit tenantId-Check über Route)
+      await queryTenant(
+        tenantId,
+        `DELETE FROM "RouteTransitOffice" 
+         WHERE "routeId" = $1 
+         AND "routeId" IN (SELECT id FROM "Route" WHERE "tenantId" = $2)`,
+        [routeId, tenantId]
       );
 
       // Erstelle neue Transit-Offices
       if (transitOfficeIds.length > 0) {
-        const transitValues = transitOfficeIds.map((officeId: string, index: number) => 
-          `(gen_random_uuid(), '${routeId}', '${officeId}', ${index + 1})`
-        ).join(', ');
-
-        await pool.query(
-          `INSERT INTO "RouteTransitOffice" (id, "routeId", "customsOfficeId", "order")
-           VALUES ${transitValues}`
-        );
+        for (let index = 0; index < transitOfficeIds.length; index++) {
+          const officeId = transitOfficeIds[index];
+          await queryTenant(
+            tenantId,
+            `INSERT INTO "RouteTransitOffice" (id, "routeId", "customsOfficeId", "order", "createdAt")
+             SELECT gen_random_uuid(), $1, $2, $3, NOW()
+             FROM "Route" WHERE id = $1 AND "tenantId" = $4`,
+            [routeId, officeId, index + 1, tenantId]
+          );
+        }
       }
     }
 
     // Lade die aktualisierte Route mit Transit-Offices
-    const routeResult = await pool.query(
-      'SELECT id, name, description, countries, "isActive", "createdAt", "updatedAt" FROM "Route" WHERE id = $1',
-      [routeId]
+    const routeResult = await queryTenant(
+      tenantId,
+      'SELECT id, name, description, countries, "isActive", "createdAt", "updatedAt" FROM "Route" WHERE id = $1 AND "tenantId" = $2',
+      [routeId, tenantId]
     );
 
     const route = routeResult.rows[0];
 
-    const transitResult = await pool.query(
+    const transitResult = await queryTenant(
+      tenantId,
       `SELECT 
         rto.id, rto."order",
         co.id as "customsOffice.id",
@@ -141,9 +151,10 @@ export async function PUT(
         co.city as "customsOffice.city"
       FROM "RouteTransitOffice" rto
       JOIN "CustomsOffice" co ON rto."customsOfficeId" = co.id
-      WHERE rto."routeId" = $1
+      JOIN "Route" r ON rto."routeId" = r.id
+      WHERE rto."routeId" = $1 AND r."tenantId" = $2
       ORDER BY rto."order" ASC`,
-      [routeId]
+      [routeId, tenantId]
     );
 
     const transitOffices = transitResult.rows.map((row) => ({
@@ -176,8 +187,9 @@ export async function PUT(
 // DELETE /api/routes/[id] - Route löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -199,7 +211,8 @@ export async function DELETE(
     const routeId = params.id;
 
     // Prüfe ob Route existiert und zum Tenant gehört
-    const existingRoute = await pool.query(
+    const existingRoute = await queryTenant(
+      tenantId,
       'SELECT id FROM "Route" WHERE id = $1 AND "tenantId" = $2',
       [routeId, tenantId]
     );
@@ -208,10 +221,20 @@ export async function DELETE(
       return NextResponse.json({ error: 'Route not found' }, { status: 404 });
     }
 
-    // Soft Delete (isActive = false)
-    await pool.query(
-      'UPDATE "Route" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1',
-      [routeId]
+    // Zuerst Transit-Offices löschen (mit tenantId-Check über Route)
+    await queryTenant(
+      tenantId,
+      `DELETE FROM "RouteTransitOffice" 
+       WHERE "routeId" = $1 
+       AND "routeId" IN (SELECT id FROM "Route" WHERE "tenantId" = $2)`,
+      [routeId, tenantId]
+    );
+
+    // Dann Route löschen (Hard Delete)
+    await queryTenant(
+      tenantId,
+      'DELETE FROM "Route" WHERE id = $1 AND "tenantId" = $2',
+      [routeId, tenantId]
     );
 
     return NextResponse.json({ message: 'Route deleted successfully' });

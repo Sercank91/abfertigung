@@ -18,3 +18,14 @@ svg {
   height: auto;
   display: block;
 }
+
+/* Custom override for leading-none */
+.leading-none {
+  /* line-height: 1; */
+  padding: 0 .25rem;
+}
+
+/* Custom override for px-1 */
+.px-1 {
+  padding: 5px;
+}

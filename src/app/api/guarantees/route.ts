@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     console.log('📋 Lade Bürgschaften für Tenant:', user.tenantId);
 
     // Bürgschaften mit Firmen-Count laden
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         g.id,
         g.name,
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
         COUNT(cg."companyId") as company_count
       FROM "Guarantee" g
       LEFT JOIN "CompanyGuarantee" cg ON g.id = cg."guaranteeId"
-      WHERE g."tenantId" = $1
+      WHERE g."tenantId" = $1 AND g."isActive" = true
       GROUP BY g.id
       ORDER BY g.name ASC`,
       [user.tenantId]
@@ -108,7 +109,8 @@ export async function POST(request: NextRequest) {
     console.log('➕ Neue Bürgschaft:', name);
 
     // Prüfen ob Name bereits existiert
-    const existing = await pool.query(
+    const existing = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Guarantee" WHERE "tenantId" = $1 AND name = $2',
       [user.tenantId, name.trim()]
     );
@@ -121,7 +123,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Neue Bürgschaft erstellen
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `INSERT INTO "Guarantee" (
         id,
         "tenantId",

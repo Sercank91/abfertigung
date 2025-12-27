@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 import { hashPassword } from '@/lib/password';
@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 });
     }
 
-    const result = await pool.query(
+    // 🔒 SECURITY: Tenant-sichere Query mit queryTenant()
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         id,
         username,
@@ -44,7 +46,7 @@ export async function GET(request: NextRequest) {
         "createdAt",
         "updatedAt"
       FROM "User" 
-      WHERE "tenantId" = $1 
+      WHERE "tenantId" = $1 AND "isActive" = true
       ORDER BY "lastName", "firstName"`,
       [user.tenantId]
     );
@@ -84,8 +86,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 🔒 SECURITY: Tenant-sichere Query mit queryTenant()
     // Prüfe ob Username bereits existiert (pro Tenant!)
-    const existingUser = await pool.query(
+    const existingUser = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "User" WHERE username = $1 AND "tenantId" = $2',
       [username, user.tenantId]
     );
@@ -100,8 +104,10 @@ export async function POST(request: NextRequest) {
     // Passwort hashen
     const hashedPassword = await hashPassword(password);
 
+    // 🔒 SECURITY: Tenant-sichere Query mit queryTenant()
     // User anlegen
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `INSERT INTO "User" (
         id,
         "tenantId",

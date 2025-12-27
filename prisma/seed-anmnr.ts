@@ -3,61 +3,90 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🚀 Starte AnmNrSequence Initialisierung...\n');
+  console.log('🚀 Starte AnmNrSequence Initialisierung (Tenant-Scoped)...\n');
   
   const currentYear = new Date().getFullYear();
   const yearShort = currentYear.toString().slice(-2);
   
   console.log(`📅 Aktuelles Jahr: ${currentYear} (${yearShort})`);
   
-  // 1. Suche höchste existierende AnmNr für dieses Jahr
-  const clearances = await prisma.clearance.findMany({
-    where: {
-      anmNr: {
-        startsWith: yearShort
-      }
-    },
+  // 1. Hole alle Tenants
+  const tenants = await prisma.tenant.findMany({
     select: {
-      anmNr: true
-    },
-    orderBy: {
-      anmNr: 'desc'
+      id: true,
+      domain: true
     }
   });
   
-  let letzteNummer = 0;
-  
-  if (clearances.length > 0) {
-    const highestAnmNr = clearances[0].anmNr;
-    
-    if (highestAnmNr && highestAnmNr.length === 5) {
-      letzteNummer = parseInt(highestAnmNr.slice(2), 10);
-      console.log(`✅ Gefunden: ${clearances.length} Clearances`);
-      console.log(`📊 Höchste AnmNr: ${highestAnmNr} (Nummer: ${letzteNummer})`);
-    }
-  } else {
-    console.log('ℹ️  Keine Clearances mit AnmNr gefunden für dieses Jahr');
+  if (tenants.length === 0) {
+    console.log('⚠️  Keine Tenants gefunden. Bitte zuerst Tenants anlegen.');
+    return;
   }
   
-  // 2. Erstelle oder Update AnmNrSequence
-  const result = await prisma.anmNrSequence.upsert({
-    where: { jahr: currentYear },
-    update: { 
-      letzteNummer,
-      updatedAt: new Date()
-    },
-    create: {
-      jahr: currentYear,
-      letzteNummer
+  console.log(`📊 Gefunden: ${tenants.length} Tenant(s)\n`);
+  
+  // 2. Iteriere über alle Tenants
+  for (const tenant of tenants) {
+    console.log(`🔄 Verarbeite Tenant: ${tenant.domain} (${tenant.id})`);
+    
+    // Suche höchste existierende AnmNr für diesen Tenant und dieses Jahr
+    const clearances = await prisma.clearance.findMany({
+      where: {
+        tenantId: tenant.id,
+        anmNr: {
+          startsWith: yearShort
+        }
+      },
+      select: {
+        anmNr: true
+      },
+      orderBy: {
+        anmNr: 'desc'
+      }
+    });
+    
+    let letzteNummer = 0;
+    
+    if (clearances.length > 0) {
+      const highestAnmNr = clearances[0].anmNr;
+      
+      if (highestAnmNr && highestAnmNr.length === 5) {
+        letzteNummer = parseInt(highestAnmNr.slice(2), 10);
+        console.log(`   ✅ Gefunden: ${clearances.length} Clearances`);
+        console.log(`   📊 Höchste AnmNr: ${highestAnmNr} (Nummer: ${letzteNummer})`);
+      }
+    } else {
+      console.log('   ℹ️  Keine Clearances mit AnmNr gefunden für dieses Jahr');
     }
-  });
+    
+    // Erstelle oder Update AnmNrSequence für diesen Tenant
+    const result = await prisma.anmNrSequence.upsert({
+      where: {
+        tenantId_jahr: {
+          tenantId: tenant.id,
+          jahr: currentYear,
+        },
+      },    
+      update: { 
+        letzteNummer,
+        updatedAt: new Date()
+      },
+      create: {
+        tenant: {
+          connect: {
+            id: tenant.id
+          }
+        },
+        jahr: currentYear,
+        letzteNummer
+      }
+    });
+    
+    console.log(`   ✅ AnmNrSequence initialisiert: Jahr ${result.jahr}, Letzte Nummer: ${result.letzteNummer}`);
+    console.log(`   ➡️  Nächste AnmNr: ${yearShort}${(letzteNummer + 1).toString().padStart(3, '0')}\n`);
+  }
   
-  console.log('\n✅ AnmNrSequence erfolgreich initialisiert:');
-  console.log(`   Jahr: ${result.jahr}`);
-  console.log(`   Letzte Nummer: ${result.letzteNummer}`);
-  console.log(`   Nächste AnmNr wird sein: ${yearShort}${(letzteNummer + 1).toString().padStart(3, '0')}`);
-  
-  // 3. Statistik
+  // 3. Gesamt-Statistik
   const totalClearances = await prisma.clearance.count();
   const clearancesWithAnmNr = await prisma.clearance.count({
     where: {
@@ -67,7 +96,7 @@ async function main() {
     }
   });
   
-  console.log('\n📊 Statistik:');
+  console.log('📊 Gesamt-Statistik:');
   console.log(`   Gesamt Clearances: ${totalClearances}`);
   console.log(`   Mit AnmNr: ${clearancesWithAnmNr}`);
   console.log(`   Ohne AnmNr: ${totalClearances - clearancesWithAnmNr}`);

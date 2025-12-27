@@ -2,22 +2,74 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
-import { getSubdomainFromHost } from '@/lib/tenant';
+import { parseTenantFromHostname } from '@/lib/tenant';
 
 const getSecret = () => getJwtSecret();
 
 export async function middleware(request: NextRequest) {
-  // Host ermitteln (Cloudflare Support)
-  // X-Forwarded-Host hat Vorrang, falls vorhanden (Original Domain vom User)
-  const forwardedHost = request.headers.get('x-forwarded-host');
+  // 🔒 SECURITY: Verwende AUSSCHLIESSLICH request.nextUrl.hostname
+  // NIEMALS x-forwarded-host verwenden - kann vom Angreifer manipuliert werden!
+  // Dies verhindert Host Header Spoofing und Tenant Escape Angriffe.
+  const hostname = request.nextUrl.hostname;
   const hostHeader = request.headers.get('host');
-  // Nehme den ersten Host aus x-forwarded-host (falls kommagetrennt) oder fallback auf host header
-  const hostname = forwardedHost?.split(',')[0] || hostHeader || request.nextUrl.hostname || '';
   
-  const hostTenantId = getSubdomainFromHost(hostname);
-  const isMainDomain = hostTenantId === null;
+  // 🧪 DEV-ONLY: Debug-Logging für localhost-Entwicklung
+  if (process.env.NODE_ENV !== 'production' && hostname.includes('localhost')) {
+    console.log('[DEV] Middleware:', { 
+      path: request.nextUrl.pathname,
+      'nextUrl.hostname': hostname,
+      'headers.host': hostHeader
+    });
+  }
+  
+  // Zentrale Tenant-Validierung mit Allowlist
+  // 🧪 DEV-ONLY: Host-Header wird nur für localhost-Subdomain-Fallback verwendet
+  const { tenant: hostTenantId, isValidHost, isAdminMode, reason } = parseTenantFromHostname(hostname, hostHeader);
+  
+  // 🛡️ BLOCKIERE ungültige Hosts sofort
+  if (!isValidHost) {
+    console.error(`[SECURITY] Ungültiger Host blockiert: ${hostname} - ${reason}`);
+    return NextResponse.json(
+      { error: 'Ungültiger Host' },
+      { status: 403 }
+    );
+  }
+  
+  const isMainDomain = hostTenantId === null && !isAdminMode;
 
-  // Prüfe ob User eingeloggt ist
+  const { pathname } = request.nextUrl;
+
+  // 🔐 ADMIN-MODE: Separate Authentifizierung
+  if (isAdminMode) {
+    const adminToken = request.cookies.get('admin-token');
+    let adminUser = null;
+
+    if (adminToken) {
+      try {
+        const { payload } = await jwtVerify(adminToken.value, getSecret());
+        adminUser = payload;
+      } catch (error) {
+        // Admin Token ungültig
+        const response = NextResponse.redirect(new URL('/admin/login', request.url));
+        response.cookies.delete('admin-token');
+        return response;
+      }
+    }
+
+    // Admin nicht eingeloggt → Redirect zu Admin Login (außer Login-Page selbst)
+    if (!adminUser && pathname !== '/admin/login') {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    // Admin eingeloggt → Leite /admin/login zu /admin um
+    if (adminUser && pathname === '/admin/login') {
+      return NextResponse.redirect(new URL('/admin', request.url));
+    }
+
+    return NextResponse.next();
+  }
+
+  // 🔐 TENANT-MODE: Normale Tenant-Authentifizierung
   const token = request.cookies.get('auth-token');
   let user = null;
 
@@ -39,8 +91,6 @@ export async function middleware(request: NextRequest) {
     response.cookies.delete('auth-token');
     return response;
   }
-
-  const { pathname } = request.nextUrl;
 
   // Subdomain-Logik (z.B. verag.localhost:3000)
   if (!isMainDomain) {
@@ -68,6 +118,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|tenant-logos).*)',
   ],
 };

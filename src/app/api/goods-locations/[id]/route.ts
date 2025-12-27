@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -19,8 +19,9 @@ async function getUserFromToken(request: NextRequest) {
 // PUT /api/goods-locations/[id] - Warenort bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -44,7 +45,8 @@ export async function PUT(
     const { name, code, description } = body;
 
     // Prüfe ob Warenort existiert und zum Tenant gehört
-    const existing = await pool.query(
+    const existing = await queryTenant(
+      tenantId,
       'SELECT id FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
       [locationId, tenantId]
     );
@@ -85,21 +87,25 @@ export async function PUT(
     updateValues.push(locationId);
 
     if (updateFields.length > 1) {
+      // Füge tenantId als letzten Parameter hinzu
+      updateValues.push(tenantId);
+      
       const updateQuery = `
         UPDATE "GoodsLocation"
         SET ${updateFields.join(', ')}
-        WHERE id = $${paramIndex}
+        WHERE id = $${paramIndex} AND "tenantId" = $${paramIndex + 1}
         RETURNING id, name, code, description, "isActive", "createdAt", "updatedAt"
       `;
 
-      const result = await pool.query(updateQuery, updateValues);
+      const result = await queryTenant(tenantId, updateQuery, updateValues);
       return NextResponse.json({ goodsLocation: result.rows[0] });
     }
 
     // Wenn nichts geändert wurde, hole aktuellen Stand
-    const result = await pool.query(
-      'SELECT id, name, code, description, "isActive", "createdAt", "updatedAt" FROM "GoodsLocation" WHERE id = $1',
-      [locationId]
+    const result = await queryTenant(
+      tenantId,
+      'SELECT id, name, code, description, "isActive", "createdAt", "updatedAt" FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
+      [locationId, tenantId]
     );
 
     return NextResponse.json({ goodsLocation: result.rows[0] });
@@ -115,8 +121,9 @@ export async function PUT(
 // DELETE /api/goods-locations/[id] - Warenort löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -138,7 +145,8 @@ export async function DELETE(
     const locationId = params.id;
 
     // Prüfe ob Warenort existiert und zum Tenant gehört
-    const existing = await pool.query(
+    const existing = await queryTenant(
+      tenantId,
       'SELECT id FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
       [locationId, tenantId]
     );
@@ -147,10 +155,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Goods location not found' }, { status: 404 });
     }
 
-    // Soft Delete
-    await pool.query(
-      'UPDATE "GoodsLocation" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1',
-      [locationId]
+    // Hard Delete - komplett aus der Datenbank entfernen
+    await queryTenant(
+      tenantId,
+      'DELETE FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
+      [locationId, tenantId]
     );
 
     return NextResponse.json({ message: 'Goods location deleted successfully' });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 import { hashPassword } from '@/lib/password';
@@ -20,8 +20,9 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelnen User abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -33,7 +34,8 @@ export async function GET(
       return NextResponse.json({ error: 'Keine Berechtigung' }, { status: 403 });
     }
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         id, username, email, "firstName", "lastName", phone, role, "isActive", "createdAt", "updatedAt"
       FROM "User" 
@@ -56,8 +58,9 @@ export async function GET(
 // PUT - User bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -70,7 +73,8 @@ export async function PUT(
     }
 
     // Prüfe ob User zum Tenant gehört
-    const checkUser = await pool.query(
+    const checkUser = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "User" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -94,9 +98,10 @@ export async function PUT(
     }
 
     // Prüfe ob Username bereits von anderem User verwendet wird
-    const existingUser = await pool.query(
-      'SELECT id FROM "User" WHERE username = $1 AND id != $2',
-      [username, params.id]
+    const existingUser = await queryTenant(
+      user.tenantId,
+      'SELECT id FROM "User" WHERE username = $1 AND id != $2 AND "tenantId" = $3',
+      [username, params.id, user.tenantId]
     );
 
     if (existingUser.rows.length > 0) {
@@ -144,7 +149,7 @@ export async function PUT(
       values = [username, firstName, lastName, email || null, phone || null, role || 'mitarbeiter', isActive ?? true, params.id, user.tenantId];
     }
 
-    const result = await pool.query(query, values);
+    const result = await queryTenant(user.tenantId, query, values);
 
     return NextResponse.json({
       message: 'Benutzer erfolgreich aktualisiert',
@@ -160,8 +165,9 @@ export async function PUT(
 // DELETE - User löschen/deaktivieren
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -174,7 +180,8 @@ export async function DELETE(
     }
 
     // Prüfe ob User existiert und zum Tenant gehört
-    const checkUser = await pool.query(
+    const checkUser = await queryTenant(
+      user.tenantId,
       'SELECT id, username FROM "User" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -195,9 +202,10 @@ export async function DELETE(
     }
 
     // Soft Delete - setze isActive auf false
-    await pool.query(
-      'UPDATE "User" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1',
-      [params.id]
+    await queryTenant(
+      user.tenantId,
+      'UPDATE "User" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1 AND "tenantId" = $2',
+      [params.id, user.tenantId]
     );
 
     console.log('✅ User deaktiviert:', checkUser.rows[0].username);

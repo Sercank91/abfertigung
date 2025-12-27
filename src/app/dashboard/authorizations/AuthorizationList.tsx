@@ -11,6 +11,9 @@ interface Authorization {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  _count?: {
+    clearances: number;
+  };
 }
 
 interface Props {
@@ -230,16 +233,22 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
   };
 
   // Delete handler with confirmation
-  const handleDelete = useCallback(async (id: string, name: string) => {
-    // Custom confirm dialog würde hier besser sein
-    if (!confirm(`Möchten Sie die Bewilligung "${name}" wirklich löschen?`)) {
+  const handleDelete = useCallback(async (auth: Authorization) => {
+    const clearanceCount = auth._count?.clearances || 0;
+    let confirmMessage = `Möchten Sie die Bewilligung "${auth.name}" wirklich löschen?`;
+    
+    if (clearanceCount > 0) {
+      confirmMessage += `\n\nWARNUNG: Diese Bewilligung wird von ${clearanceCount} Abfertigung(en) verwendet und wird bei diesen entfernt!`;
+    }
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
-    setDeleteLoadingId(id);
+    setDeleteLoadingId(auth.id);
 
     try {
-      const response = await fetch(`/api/authorizations/${id}`, {
+      const response = await fetch(`/api/authorizations/${auth.id}`, {
         method: 'DELETE',
         headers: {
           'X-Requested-With': 'XMLHttpRequest' // CSRF protection
@@ -253,7 +262,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
       }
 
       // Optimistic update
-      setAuthorizations(prev => prev.filter(auth => auth.id !== id));
+      setAuthorizations(prev => prev.filter(a => a.id !== auth.id));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Fehler beim Löschen';
       // Bessere Error-Anzeige statt alert
@@ -397,7 +406,7 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
                           Bearbeiten
                         </button>
                         <button
-                          onClick={() => handleDelete(auth.id, auth.name)}
+                          onClick={() => handleDelete(auth)}
                           disabled={deleteLoadingId === auth.id}
                           className="inline-flex items-center px-2 py-1 text-xs rounded border border-[#d32f2f] text-[#d32f2f] bg-transparent transition-all hover:bg-[#d32f2f] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#d32f2f] focus:ring-offset-1"
                           aria-label={`Bewilligung ${auth.name} löschen`}
@@ -418,14 +427,12 @@ export default function AuthorizationList({ initialAuthorizations, canEdit }: Pr
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={closeModal}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
           <div 
             className="bg-white rounded-sm border border-[#c6c6c6] max-w-md w-full shadow-lg"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4">
               <h2 id="modal-title" className="text-lg font-bold text-[#525252] mb-4">

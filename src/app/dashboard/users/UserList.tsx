@@ -557,14 +557,12 @@ export default function UserList({ initialUsers, canEdit, userRole }: Props) {
       {showModal && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto"
-          onClick={closeModal}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
         >
           <div 
             className="bg-white rounded-sm border border-[#c6c6c6] w-full max-w-2xl shadow-lg my-8"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 max-h-[85vh] overflow-y-auto">
               <h2 id="modal-title" className="text-lg font-bold text-[#525252] mb-4">

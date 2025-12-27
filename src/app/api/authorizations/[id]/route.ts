@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -19,8 +19,9 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelne Bewilligung abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -28,7 +29,8 @@ export async function GET(
       return NextResponse.json({ error: 'Nicht authentifiziert' }, { status: 401 });
     }
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT id, name, description, code, "isActive", "createdAt", "updatedAt"
       FROM "Authorization" 
       WHERE id = $1 AND "tenantId" = $2`,
@@ -50,8 +52,9 @@ export async function GET(
 // PUT - Bewilligung bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -64,7 +67,8 @@ export async function PUT(
     }
 
     // Prüfe ob Bewilligung zum Tenant gehört
-    const checkAuth = await pool.query(
+    const checkAuth = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -88,7 +92,8 @@ export async function PUT(
     }
 
     // Prüfe ob Name bereits von anderer Bewilligung verwendet wird
-    const existingAuth = await pool.query(
+    const existingAuth = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Authorization" WHERE "tenantId" = $1 AND name = $2 AND id != $3',
       [user.tenantId, name, params.id]
     );
@@ -101,7 +106,8 @@ export async function PUT(
     }
 
     // Bewilligung aktualisieren
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `UPDATE "Authorization" SET
         name = $1,
         description = $2,
@@ -124,11 +130,12 @@ export async function PUT(
   }
 }
 
-// DELETE - Bewilligung löschen/deaktivieren
+// DELETE - Bewilligung löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -141,7 +148,8 @@ export async function DELETE(
     }
 
     // Prüfe ob Bewilligung existiert und zum Tenant gehört
-    const checkAuth = await pool.query(
+    const checkAuth = await queryTenant(
+      user.tenantId,
       'SELECT id, name FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -153,16 +161,38 @@ export async function DELETE(
       );
     }
 
-    // Soft Delete - setze isActive auf false
-    await pool.query(
-      'UPDATE "Authorization" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1',
-      [params.id]
+    console.log('🗑️ Bewilligung löschen:', params.id);
+
+    // Zähle wie viele Abfertigungen diese Bewilligung verwenden
+    const clearanceCount = await queryTenant(
+      user.tenantId,
+      'SELECT COUNT(*) as count FROM "Clearance" WHERE "authorizationId" = $1 AND "tenantId" = $2',
+      [params.id, user.tenantId]
     );
 
-    console.log('✅ Bewilligung deaktiviert:', checkAuth.rows[0].name);
+    const affectedClearances = parseInt(clearanceCount.rows[0].count);
+
+    // Setze authorizationId auf NULL für alle betroffenen Abfertigungen
+    if (affectedClearances > 0) {
+      await queryTenant(
+        user.tenantId,
+        'UPDATE "Clearance" SET "authorizationId" = NULL, "updatedAt" = NOW() WHERE "authorizationId" = $1 AND "tenantId" = $2',
+        [params.id, user.tenantId]
+      );
+    }
+
+    // Bewilligung löschen
+    await queryTenant(
+      user.tenantId,
+      'DELETE FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
+      [params.id, user.tenantId]
+    );
+
+    console.log('✅ Bewilligung gelöscht:', checkAuth.rows[0].name);
 
     return NextResponse.json({
-      message: 'Bewilligung wurde deaktiviert'
+      message: 'Bewilligung erfolgreich gelöscht',
+      affectedClearances: affectedClearances
     });
 
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 import { hashPassword, verifyPassword } from '@/lib/password';
@@ -38,7 +38,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Aktuellen Benutzer mit Passwort abrufen
-    const userResult = await pool.query(
+    const userResult = await queryTenant(
+      user.tenantId,
       'SELECT id, username, password FROM "User" WHERE id = $1 AND "tenantId" = $2',
       [user.id, user.tenantId]
     );
@@ -64,7 +65,8 @@ export async function PUT(request: NextRequest) {
     const hashedPassword = await hashPassword(newPassword);
 
     // Neues Passwort speichern
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       `UPDATE "User" 
        SET password = $1, "updatedAt" = NOW()
        WHERE id = $2 AND "tenantId" = $3`,

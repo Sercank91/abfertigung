@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import ProfileForm from './ProfileForm';
 import SubHeader from '@/components/SubHeader';
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
   
@@ -14,7 +14,7 @@ async function getUser() {
     const payload = decodeJwt(token.value);
     
     // Hole die aktuellen Daten aus der Datenbank (nicht nur aus JWT)
-    const result = await pool.query(
+    const result = await querySystem(
       `SELECT id, username, email, "firstName", "lastName", phone, role, "tenantId"
        FROM "User" 
        WHERE id = $1`,

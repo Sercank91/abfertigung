@@ -138,17 +138,10 @@ export default function ClearanceList() {
   };
 
   const handleResetFilters = () => {
-    // Setze Datum von auf 1 Woche zurück
-    const today = new Date();
-    const oneWeekAgo = new Date(today);
-    oneWeekAgo.setDate(today.getDate() - 7);
-    const oneWeekAgoStr = oneWeekAgo.toISOString().split('T')[0];
-    setFilterDateFrom(oneWeekAgoStr);
-    
-    // Datum bis bleibt leer
+    // Alle Filter komplett zurücksetzen (auch Datum!)
+    setFilterDateFrom('');
     setFilterDateTo('');
-    
-    setFilterAnmNr('');  // ✅ NEU!
+    setFilterAnmNr('');
     setFilterLRN('');
     setFilterLicensePlate('');
     setFilterCompany('');

@@ -28,18 +28,20 @@ export default function SubHeader({ title, userRole, tenantName }: SubHeaderProp
 
   if (!canAccessAdmin) {
     return (
-      <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
-        <h2 className="text-gray-800 text-xl font-normal leading-none">
-          {title}
-        </h2>
+      <div className="w-full pb-1 bg-[#f2f2f2]">
+        <div className="px-1 flex flex-row flex-nowrap justify-between">
+          <h2 className="text-gray-800 text-[1.8rem] font-normal leading-none">
+            {title}
+          </h2>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
-      <div className="flex items-center justify-between">
-        <h2 className="text-gray-800 text-xl font-normal leading-none">
+    <div className="w-full pb-1 bg-[#f2f2f2]">
+      <div className="px-1 flex flex-row flex-nowrap justify-between">
+        <h2 className="text-gray-800 text-[1.8rem] font-normal leading-none">
           {title}
         </h2>
         

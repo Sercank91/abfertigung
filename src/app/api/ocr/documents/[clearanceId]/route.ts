@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 
 /**
  * GET /api/ocr/documents/[clearanceId]
@@ -8,13 +8,14 @@ import { pool } from '@/lib/db';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { clearanceId: string } }
+  context: { params: Promise<{ clearanceId: string }> }
 ) {
+  const params = await context.params;
   try {
     const { clearanceId } = params;
 
     // Alle OCR-Dokumente für diese Clearance laden
-    const documentsResult = await pool.query(
+    const documentsResult = await querySystem(
       `SELECT
         d.id, d."fileName", d."fileSize", d."fileType", d.status,
         d.progress, d."errorMessage", d."ocrJobId" as "taskId",
@@ -28,7 +29,7 @@ export async function GET(
     // Für jedes Dokument die Shipments laden
     const documents = await Promise.all(
       documentsResult.rows.map(async (doc) => {
-        const shipmentsResult = await pool.query(
+        const shipmentsResult = await querySystem(
           `SELECT
             s.id, s.mrn, s."documentType", s."procedureType", s.verified,
             s."commonSender", s."commonReceiver",
@@ -44,7 +45,7 @@ export async function GET(
         // Für jedes Shipment die Positionen laden
         const shipments = await Promise.all(
           shipmentsResult.rows.map(async (shipment) => {
-            const positionsResult = await pool.query(
+            const positionsResult = await querySystem(
               `SELECT
                 p.id, p."orderNumber", p."hsCode", p.description,
                 p."netWeight", p."grossWeight", p.procedure, p."procedureType",

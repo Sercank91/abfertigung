@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 import { generateNextAnmNr } from '@/lib/anmnr';
@@ -64,7 +64,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Query mit JOINs für Relations - JETZT MIT anmNr!
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         c.id,
         c."anmNr",
@@ -193,7 +194,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Prüfe ob LRN bereits existiert
-    const existingLRN = await pool.query(
+    const existingLRN = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Clearance" WHERE "tenantId" = $1 AND lrn = $2',
       [user.tenantId, lrn]
     );
@@ -212,7 +214,8 @@ export async function POST(request: NextRequest) {
 
     // 🔒 SECURITY CHECK (P0): IDOR Prevention
     // Prüfe ob referenzierte Entitäten dem Tenant gehören
-    const company = await pool.query(
+    const company = await queryTenant(
+      user.tenantId,
       'SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $2',
       [companyId, user.tenantId]
     );
@@ -220,7 +223,8 @@ export async function POST(request: NextRequest) {
       return createErrorResponse('Ungültige Firma (Zugriff verweigert)', 403);
     }
 
-    const guarantee = await pool.query(
+    const guarantee = await queryTenant(
+      user.tenantId,
       'SELECT 1 FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
       [guaranteeId, user.tenantId]
     );
@@ -229,7 +233,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (routeId) {
-      const route = await pool.query(
+      const route = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "Route" WHERE id = $1 AND "tenantId" = $2',
         [routeId, user.tenantId]
       );
@@ -239,7 +244,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (goodsLocationId) {
-      const goodsLocation = await pool.query(
+      const goodsLocation = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
         [goodsLocationId, user.tenantId]
       );
@@ -249,7 +255,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (authorizationId) {
-      const authorization = await pool.query(
+      const authorization = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
         [authorizationId, user.tenantId]
       );
@@ -259,10 +266,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ✅ NEU: Generiere Anmeldenummer (Tenant-Scoped)!
-    const anmNr = await generateNextAnmNr();
+    const anmNr = await generateNextAnmNr(user.tenantId);
 
     // ✅ NEU: Clearance anlegen - MIT anmNr UND ZOLLSTELLEN!
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `INSERT INTO "Clearance" (
         id,
         "anmNr",
@@ -323,7 +331,8 @@ export async function POST(request: NextRequest) {
     );
 
     // History eintragen
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       `INSERT INTO "ClearanceHistory" (
         id,
         "clearanceId",

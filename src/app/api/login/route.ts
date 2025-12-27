@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import { verifyPassword } from '@/lib/password';
@@ -7,7 +7,7 @@ import { LoginSchema, validateData } from '@/lib/validators';
 import logger from '@/lib/logger';
 import { handleApiError, NotFoundError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
 import { getJwtSecret } from '@/lib/auth';
-import { getSubdomainFromHost } from '@/lib/tenant';
+import { parseTenantFromHostname } from '@/lib/tenant';
 
 // ✅ JWT Secret MUSS vorhanden sein - kein Fallback!
 // Check moved to inside handler to prevent build crashes
@@ -30,27 +30,59 @@ export const POST = handleApiError(async (request: NextRequest) => {
   const body = await request.json();
   const { username, password } = validateData(LoginSchema, body);
     
-  // Host ermitteln (Cloudflare Support)
-  const forwardedHost = request.headers.get('x-forwarded-host');
+  // 🔒 SECURITY: Verwende zentrale Tenant-Validierung
+  // NIEMALS x-forwarded-host verwenden - verhindert Host Header Spoofing
+  const hostname = request.nextUrl.hostname;
   const hostHeader = request.headers.get('host');
-  const host = forwardedHost?.split(',')[0] || hostHeader || '';
   
-  const subdomain = getSubdomainFromHost(host);
+  // 🧪 DEV-ONLY: Debug-Logging für localhost-Entwicklung
+  if (process.env.NODE_ENV !== 'production' && hostname.includes('localhost')) {
+    console.log('[DEV] Login Request:', { 
+      'nextUrl.hostname': hostname,
+      'headers.host': hostHeader,
+      'nextUrl.href': request.nextUrl.href
+    });
+  }
+  
+  // 🧪 DEV-ONLY: Host-Header wird nur für localhost-Subdomain-Fallback verwendet
+  // In Production wird hostHeader ignoriert (siehe parseTenantFromHostname Implementation)
+  const { tenant: subdomain, isValidHost, reason } = parseTenantFromHostname(hostname, hostHeader);
+
+  // Blockiere ungültige Hosts
+  if (!isValidHost) {
+    // 🧪 DEV-ONLY: Erweiterte Fehlerinfo für Debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEV] Host validation failed:', { hostname, isValidHost, reason, subdomain });
+    }
+    logger.auth.loginFailed(username, `Ungültiger Host: ${reason}`);
+    throw new ForbiddenError('Ungültiger Host');
+  }
 
   if (!subdomain) {
+    // 🧪 DEV-ONLY: Erweiterte Fehlerinfo für Debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEV] No subdomain extracted:', { hostname, isValidHost, subdomain });
+    }
     throw new NotFoundError('Login nur über Firmen-Subdomain möglich');
   }
 
   // ✅ Strukturiertes Logging
   logger.auth.loginAttempt(username, subdomain);
 
+  // 🔒 SECURITY: Login-Queries sind System-Queries (laufen VOR Tenant-Bestimmung)
+  // Verwende querySystem() statt queryTenant()
+
   // 1. Tenant finden
-  const tenantResult = await pool.query(
+  const tenantResult = await querySystem(
     'SELECT id, name, domain FROM "Tenant" WHERE domain = $1',
     [subdomain]
   );
 
   if (tenantResult.rows.length === 0) {
+    // 🧪 DEV-ONLY: Erweiterte Fehlerinfo für Debugging
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[DEV] Tenant not found in database:', { subdomain, hostname });
+    }
     logger.auth.loginFailed(username, 'Tenant nicht gefunden');
     throw new NotFoundError('Firma nicht gefunden');
   }
@@ -58,7 +90,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
   const tenant = tenantResult.rows[0];
 
   // 2. User finden (mit username)
-  const userResult = await pool.query(
+  const userResult = await querySystem(
     `SELECT
       u.id, u.username, u.email, u."firstName", u."lastName", u.password, u.role, u."tenantId", u.phone, u."isActive",
       t.name as "tenantName"
@@ -106,7 +138,7 @@ export const POST = handleApiError(async (request: NextRequest) => {
     .sign(SECRET);
 
   // 6. Cookie setzen
-  cookies().set('auth-token', token, {
+  (await cookies()).set('auth-token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

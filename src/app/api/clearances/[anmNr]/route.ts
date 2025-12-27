@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 import { isValidAnmNr } from '@/lib/anmnr';
@@ -20,8 +20,9 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelne Clearance abrufen (per AnmNr!)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { anmNr: string } }
+  context: { params: Promise<{ anmNr: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -43,7 +44,8 @@ export async function GET(
     }
 
     // ✅ NEU: Clearance mit allen Relations laden - INKL. ZOLLSTELLEN!
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         c.*,
         comp.id as "companyId",
@@ -204,8 +206,9 @@ export async function GET(
 // PUT - Clearance bearbeiten (per AnmNr!)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { anmNr: string } }
+  context: { params: Promise<{ anmNr: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -227,7 +230,8 @@ export async function PUT(
     }
 
     // Prüfe ob Clearance existiert
-    const checkClearance = await pool.query(
+    const checkClearance = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Clearance" WHERE "anmNr" = $1 AND "tenantId" = $2',
       [anmNr, user.tenantId]
     );
@@ -260,7 +264,8 @@ export async function PUT(
     }
 
     // Prüfe ob LRN bereits von anderer Clearance verwendet wird
-    const existingLRN = await pool.query(
+    const existingLRN = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Clearance" WHERE "tenantId" = $1 AND lrn = $2 AND "anmNr" != $3',
       [user.tenantId, body.lrn, anmNr]
     );
@@ -281,7 +286,8 @@ export async function PUT(
     }
 
     // 🔒 SECURITY CHECK (P0): IDOR Prevention
-    const company = await pool.query(
+    const company = await queryTenant(
+      user.tenantId,
       'SELECT 1 FROM "Company" WHERE id = $1 AND "tenantId" = $2',
       [body.companyId, user.tenantId]
     );
@@ -292,7 +298,8 @@ export async function PUT(
       );
     }
 
-    const guarantee = await pool.query(
+    const guarantee = await queryTenant(
+      user.tenantId,
       'SELECT 1 FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
       [body.guaranteeId, user.tenantId]
     );
@@ -304,7 +311,8 @@ export async function PUT(
     }
 
     if (body.routeId) {
-      const route = await pool.query(
+      const route = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "Route" WHERE id = $1 AND "tenantId" = $2',
         [body.routeId, user.tenantId]
       );
@@ -317,7 +325,8 @@ export async function PUT(
     }
 
     if (body.goodsLocationId) {
-      const goodsLocation = await pool.query(
+      const goodsLocation = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "GoodsLocation" WHERE id = $1 AND "tenantId" = $2',
         [body.goodsLocationId, user.tenantId]
       );
@@ -330,7 +339,8 @@ export async function PUT(
     }
 
     if (authorizationId) {
-      const authorization = await pool.query(
+      const authorization = await queryTenant(
+        user.tenantId,
         'SELECT 1 FROM "Authorization" WHERE id = $1 AND "tenantId" = $2',
         [authorizationId, user.tenantId]
       );
@@ -343,7 +353,8 @@ export async function PUT(
     }
 
     // ✅ NEU: UPDATE mit Zollstellen!
-    const updateResult = await pool.query(
+    const updateResult = await queryTenant(
+      user.tenantId,
       `UPDATE "Clearance" SET
         lrn = $1,
         "companyId" = $2,
@@ -393,7 +404,8 @@ export async function PUT(
     );
 
     // History eintragen
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       `INSERT INTO "ClearanceHistory" (
         id,
         "clearanceId",
@@ -417,7 +429,8 @@ export async function PUT(
     );
 
     // Lade vollständige Daten für Response (mit Zollstellen!)
-    const fullClearance = await pool.query(
+    const fullClearance = await queryTenant(
+      user.tenantId,
       `SELECT 
         c.*,
         comp.id as "companyId",
@@ -466,8 +479,8 @@ export async function PUT(
       LEFT JOIN "CustomsOffice" co_dest ON c."destinationOfficeId" = co_dest.id
       LEFT JOIN "User" u_created ON c."createdById" = u_created.id
       LEFT JOIN "User" u_updated ON c."updatedById" = u_updated.id
-      WHERE c."anmNr" = $1`,
-      [anmNr]
+      WHERE c."anmNr" = $1 AND c."tenantId" = $2`,
+      [anmNr, user.tenantId]
     );
 
     const row = fullClearance.rows[0];
@@ -562,8 +575,9 @@ export async function PUT(
 // DELETE - Clearance löschen (per AnmNr!)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { anmNr: string } }
+  context: { params: Promise<{ anmNr: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -593,7 +607,8 @@ export async function DELETE(
     }
 
     // Prüfe ob Clearance existiert
-    const checkClearance = await pool.query(
+    const checkClearance = await queryTenant(
+      user.tenantId,
       'SELECT id, lrn FROM "Clearance" WHERE "anmNr" = $1 AND "tenantId" = $2',
       [anmNr, user.tenantId]
     );
@@ -610,7 +625,8 @@ export async function DELETE(
     console.log('🗑️ Abfertigung löschen:', anmNr);
 
     // History eintragen vor dem Löschen
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       `INSERT INTO "ClearanceHistory" (
         id,
         "clearanceId",
@@ -634,7 +650,8 @@ export async function DELETE(
     );
 
     // Clearance löschen
-    await pool.query(
+    await queryTenant(
+      user.tenantId,
       'DELETE FROM "Clearance" WHERE "anmNr" = $1 AND "tenantId" = $2',
       [anmNr, user.tenantId]
     );

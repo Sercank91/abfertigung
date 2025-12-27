@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -19,8 +19,9 @@ async function getUserFromToken(request: NextRequest) {
 // GET - Einzelne Bürgschaft abrufen
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -31,7 +32,8 @@ export async function GET(
       );
     }
 
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `SELECT 
         id,
         name,
@@ -65,8 +67,9 @@ export async function GET(
 // PUT - Bürgschaft bearbeiten
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -86,7 +89,8 @@ export async function PUT(
     }
 
     // Prüfe ob Bürgschaft existiert
-    const checkGuarantee = await pool.query(
+    const checkGuarantee = await queryTenant(
+      user.tenantId,
       'SELECT id, name FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -113,7 +117,8 @@ export async function PUT(
 
     // Prüfen ob neuer Name bereits existiert (außer bei gleicher ID)
     if (name !== checkGuarantee.rows[0].name) {
-      const duplicate = await pool.query(
+      const duplicate = await queryTenant(
+        user.tenantId,
         'SELECT id FROM "Guarantee" WHERE "tenantId" = $1 AND name = $2 AND id != $3',
         [user.tenantId, name.trim(), params.id]
       );
@@ -127,7 +132,8 @@ export async function PUT(
     }
 
     // Bürgschaft aktualisieren
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `UPDATE "Guarantee" SET
         name = $1,
         description = $2,
@@ -166,8 +172,9 @@ export async function PUT(
 // DELETE - Bürgschaft löschen
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   try {
     const user = await getUserFromToken(request);
     
@@ -187,7 +194,8 @@ export async function DELETE(
     }
 
     // Prüfe ob Bürgschaft existiert
-    const checkGuarantee = await pool.query(
+    const checkGuarantee = await queryTenant(
+      user.tenantId,
       'SELECT id FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );
@@ -201,16 +209,32 @@ export async function DELETE(
 
     console.log('🗑️ Bürgschaft löschen:', params.id);
 
-    // Zähle wie viele Firmen betroffen sind
-    const companyCount = await pool.query(
-      'SELECT COUNT(*) as count FROM "CompanyGuarantee" WHERE "guaranteeId" = $1',
-      [params.id]
+    // Zähle wie viele Firmen betroffen sind (mit JOIN auf Company für tenantId-Filter)
+    const companyCount = await queryTenant(
+      user.tenantId,
+      `SELECT COUNT(*) as count 
+       FROM "CompanyGuarantee" cg
+       INNER JOIN "Company" c ON cg."companyId" = c.id
+       WHERE cg."guaranteeId" = $1 AND c."tenantId" = $2`,
+      [params.id, user.tenantId]
     );
 
     const affectedCompanies = parseInt(companyCount.rows[0].count);
 
-    // Bürgschaft löschen (Cascade löscht automatisch CompanyGuarantee Einträge)
-    await pool.query(
+    // Zuerst CompanyGuarantee Einträge löschen (für diesen Tenant)
+    await queryTenant(
+      user.tenantId,
+      `DELETE FROM "CompanyGuarantee" 
+       WHERE "guaranteeId" = $1 
+       AND "companyId" IN (
+         SELECT id FROM "Company" WHERE "tenantId" = $2
+       )`,
+      [params.id, user.tenantId]
+    );
+
+    // Dann Bürgschaft löschen
+    await queryTenant(
+      user.tenantId,
       'DELETE FROM "Guarantee" WHERE id = $1 AND "tenantId" = $2',
       [params.id, user.tenantId]
     );

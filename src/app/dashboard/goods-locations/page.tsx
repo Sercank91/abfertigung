@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import GoodsLocationList from './GoodsLocationList';
 import SubHeader from '@/components/SubHeader';
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
   
@@ -21,7 +21,8 @@ async function getUser() {
 // Direkte Datenbankabfrage statt HTTP-Request
 async function getGoodsLocations(tenantId: string) {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `SELECT id, name, code, description, "isActive", "createdAt", "updatedAt"
        FROM "GoodsLocation" 
        WHERE "tenantId" = $1 
@@ -42,7 +43,7 @@ export default async function GoodsLocationsPage() {
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Subheader mit Titel */}
       <SubHeader 
         title={`Warenort-Verwaltung - ${user.tenantName}`}
@@ -51,15 +52,17 @@ export default async function GoodsLocationsPage() {
       />
 
       {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="max-w-7xl mx-auto">
-          <GoodsLocationList 
-            initialGoodsLocations={goodsLocations}
-            canEdit={canEdit}
-            userRole={user.role}
-          />
+      <div className="flex-1 overflow-auto">
+        <div className="px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            <GoodsLocationList 
+              initialGoodsLocations={goodsLocations}
+              canEdit={canEdit}
+              userRole={user.role}
+            />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

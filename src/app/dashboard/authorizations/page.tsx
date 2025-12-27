@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import AuthorizationList from './AuthorizationList';
 import SubHeader from '@/components/SubHeader';
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
   
@@ -21,14 +21,38 @@ async function getUser() {
 // Direkte Datenbankabfrage statt HTTP-Request
 async function getAuthorizations(tenantId: string) {
   try {
-    const result = await pool.query(
-      `SELECT id, name, code, description, "isActive", "createdAt", "updatedAt"
-       FROM "Authorization" 
-       WHERE "tenantId" = $1 
-       ORDER BY name`,
+    const result = await queryTenant(
+      tenantId,
+      `SELECT 
+        a.id,
+        a.name,
+        a.code,
+        a.description,
+        a."isActive",
+        a."createdAt",
+        a."updatedAt",
+        COUNT(c.id) as clearance_count
+       FROM "Authorization" a
+       LEFT JOIN "Clearance" c ON a.id = c."authorizationId" AND c."tenantId" = $1
+       WHERE a."tenantId" = $1 
+       GROUP BY a.id
+       ORDER BY a.name`,
       [tenantId]
     );
-    return result.rows;
+    
+    // Format für Frontend
+    return result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      code: row.code,
+      description: row.description,
+      isActive: row.isActive,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      _count: {
+        clearances: parseInt(row.clearance_count)
+      }
+    }));
   } catch (error) {
     console.error('Fehler beim Laden der Bewilligungen:', error);
     return [];
@@ -42,7 +66,7 @@ export default async function AuthorizationsPage() {
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
   
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Subheader mit Titel */}
       <SubHeader 
         title={`Bewilligungs-Verwaltung - ${user.tenantName}`}
@@ -51,14 +75,16 @@ export default async function AuthorizationsPage() {
       />
 
       {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="max-w-7xl mx-auto">
-          <AuthorizationList 
-            initialAuthorizations={authorizations}
-            canEdit={canEdit}
-          />
+      <div className="flex-1 overflow-auto">
+        <div className="px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            <AuthorizationList 
+              initialAuthorizations={authorizations}
+              canEdit={canEdit}
+            />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

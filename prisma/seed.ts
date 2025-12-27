@@ -10,13 +10,33 @@ async function hashPassword(password: string): Promise<string> {
 async function main() {
   console.log('🌱 Starte Seed...')
 
+  // ===== SUPER ADMIN =====
+  await prisma.superAdmin.upsert({
+    where: { username: 'admin' },
+    update: {
+      password: await hashPassword('admin123')
+    },
+    create: {
+      username: 'admin',
+      email: 'admin@abfertigung.io',
+      password: await hashPassword('admin123'),
+      firstName: 'Super',
+      lastName: 'Admin',
+      isActive: true
+    }
+  })
+  console.log('✅ Super-Admin erstellt/aktualisiert: admin')
+
   // Verag Tenant
   const verag = await prisma.tenant.upsert({
     where: { domain: 'verag' },
-    update: {},
+    update: {
+      logoUrl: 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg'
+    },
     create: {
       name: 'Verag Spedition GmbH',
       domain: 'verag',
+      logoUrl: 'https://verag.ag/templates/ut_lawstudio/images/presets/preset1/logo.svg'
     },
   })
   console.log('✅ Tenant erstellt: Verag')
@@ -24,13 +44,30 @@ async function main() {
   // DSV Tenant
   const dsv = await prisma.tenant.upsert({
     where: { domain: 'dsv' },
-    update: {},
+    update: {
+      logoUrl: 'https://dsv-media-premium.azureedge.net/~/media/corporate/global/logo/dsv-logo-small.svg?iar=0&rev=391728928e824eef9247d3d041620943'
+    },
     create: {
       name: 'DSV Spedition GmbH',
       domain: 'dsv',
+      logoUrl: 'https://dsv-media-premium.azureedge.net/~/media/corporate/global/logo/dsv-logo-small.svg?iar=0&rev=391728928e824eef9247d3d041620943'
     },
   })
   console.log('✅ Tenant erstellt: DSV')
+
+  // Atilla Tenant
+  const atilla = await prisma.tenant.upsert({
+    where: { domain: 'atilla' },
+    update: {
+      logoUrl: 'https://www.atillaspedition.at/wp-content/uploads/2022/03/atilla-logo-300x88.png'
+    },
+    create: {
+      name: 'Atilla Spedition GmbH',
+      domain: 'atilla',
+      logoUrl: 'https://www.atillaspedition.at/wp-content/uploads/2022/03/atilla-logo-300x88.png'
+    },
+  })
+  console.log('✅ Tenant erstellt: Atilla')
 
   // ===== VERAG USERS =====
   
@@ -178,8 +215,30 @@ async function main() {
   })
   console.log('✅ User erstellt/aktualisiert: ahmet (DSV)')
 
+  // ===== ATILLA USERS =====
+
+  await prisma.user.upsert({
+    where: { tenantId_username: { tenantId: atilla.id, username: 'atilla-admin' } },
+    update: {
+      password: await hashPassword('atilla123')
+    },
+    create: {
+      username: 'atilla-admin',
+      email: 'admin@atilla.com',
+      password: await hashPassword('atilla123'),
+      firstName: 'Atilla',
+      lastName: 'Admin',
+      role: 'admin',
+      tenantId: atilla.id,
+    },
+  })
+  console.log('✅ User erstellt/aktualisiert: atilla-admin (Atilla)')
+
   console.log('')
   console.log('🎉 Seed erfolgreich abgeschlossen!')
+  console.log('')
+  console.log('👑 SUPER ADMIN (admin.localhost:3000):')
+  console.log('   Username: admin  | Password: admin123')
   console.log('')
   console.log('📋 Test-User für Verag:')
   console.log('   Admin:         username: admin          | password: admin123')
@@ -192,6 +251,9 @@ async function main() {
   console.log('   Schichtleiter: username: dsv-schichtleiter  | password: dsv-schicht123')
   console.log('   Schichtleiter: username: ahmet              | password: ahmet123')
   console.log('   Mitarbeiter:   username: dsv-mitarbeiter    | password: dsv-mit123')
+  console.log('')
+  console.log('📋 Test-User für Atilla:')
+  console.log('   Admin:         username: atilla-admin       | password: atilla123')
   console.log('')
   console.log('🔐 Alle Passwörter sind jetzt mit bcryptjs gehasht!')
 }

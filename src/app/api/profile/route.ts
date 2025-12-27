@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import { jwtVerify } from 'jose';
 import { getJwtSecret } from '@/lib/auth';
 
@@ -33,7 +33,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // E-Mail Duplikat-Check (nur im gleichen Tenant)
-    const duplicateCheck = await pool.query(
+    const duplicateCheck = await queryTenant(
+      user.tenantId,
       `SELECT id FROM "User" 
        WHERE email = $1 AND "tenantId" = $2 AND id != $3`,
       [email, user.tenantId, user.id]
@@ -44,7 +45,8 @@ export async function PUT(request: NextRequest) {
     }
 
     // Profil aktualisieren
-    const result = await pool.query(
+    const result = await queryTenant(
+      user.tenantId,
       `UPDATE "User" 
        SET email = $1, phone = $2, "updatedAt" = NOW()
        WHERE id = $3 AND "tenantId" = $4

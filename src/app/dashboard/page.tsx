@@ -14,7 +14,7 @@ interface UserPayload {
 }
 
 async function getUser(): Promise<UserPayload> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   
   if (!token?.value) {
@@ -82,104 +82,67 @@ export default async function DashboardPage() {
   const isAdminOrShiftLeader = user.role === 'admin' || user.role === 'schichtleiter';
   
   return (
-    <>
-      {/* Subheader mit Titel */}
-      <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
-        <h2 className="text-gray-800 text-xl font-normal leading-none">
-          Startseite - {user.tenantName || 'System'}
-        </h2>
+    <div className="flex flex-col h-full">
+      {/* Titlebar-Out - TELTEC Struktur */}
+      <div className="w-full pb-1 bg-[#f2f2f2]">
+        {/* Titlebar */}
+        <div className="px-1 flex flex-row flex-nowrap justify-between">
+          <h1 className="text-gray-800 text-[1.8rem] font-normal leading-none">
+            Startseite
+          </h1>
+        </div>
       </div>
 
-      {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="max-w-7xl mx-auto">
-          {/* Quick Access Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {QUICK_ACCESS_CARDS.map((card) => (
-              <Link key={card.href} href={card.href} className="dashboard-card">
-                <div className="flex items-center gap-4">
-                  <div className="card-icon">
+      {/* Main Content - TELTEC Struktur */}
+      <div className="flex-1 bg-white overflow-auto">
+        <div className="p-6">
+          <div className="max-w-7xl mx-auto">
+            {/* Quick Access Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {QUICK_ACCESS_CARDS.map((card) => (
+                <Link 
+                  key={card.href} 
+                  href={card.href} 
+                  className="group flex items-center gap-4 p-6 bg-white border border-[#c6c6c6] rounded shadow-sm transition-all duration-200 no-underline text-gray-800 hover:bg-gradient-to-b hover:from-[#0090e5] hover:via-[#0076bc] hover:to-[#0069a8] hover:text-white hover:shadow-[0_4px_12px_rgba(0,118,188,0.3)] hover:-translate-y-0.5"
+                >
+                  <div className="text-[#0076bc] transition-colors duration-200 flex-shrink-0 group-hover:text-white">
                     <svg className="w-8 h-8" width="32" height="32" fill="currentColor" viewBox="0 0 24 24">
                       <path d={card.icon}/>
                     </svg>
                   </div>
-                  <div className="card-title">{card.title}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div className="text-base font-medium">{card.title}</div>
+                </Link>
+              ))}
+            </div>
 
-          {/* Admin & Schichtleiter Cards */}
-          {isAdminOrShiftLeader && (
-            <>
-              {/* Trennlinie */}
-              <div className="separator-line mb-6"></div>
+            {/* Admin & Schichtleiter Cards */}
+            {isAdminOrShiftLeader && (
+              <>
+                {/* Trennlinie */}
+                <div className="w-full h-px bg-gray-200 my-6"></div>
 
-              {/* Verwaltungs-Reihe */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {ADMIN_CARDS.map((card) => (
-                  <Link key={card.href} href={card.href} className="dashboard-card">
-                    <div className="flex items-center gap-4">
-                      <div className="card-icon">
+                {/* Verwaltungs-Reihe */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                  {ADMIN_CARDS.map((card) => (
+                    <Link 
+                      key={card.href} 
+                      href={card.href} 
+                      className="group flex items-center gap-4 p-6 bg-white border border-[#c6c6c6] rounded shadow-sm transition-all duration-200 no-underline text-gray-800 hover:bg-gradient-to-b hover:from-[#0090e5] hover:via-[#0076bc] hover:to-[#0069a8] hover:text-white hover:shadow-[0_4px_12px_rgba(0,118,188,0.3)] hover:-translate-y-0.5"
+                    >
+                      <div className="text-[#0076bc] transition-colors duration-200 flex-shrink-0 group-hover:text-white">
                         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                           <path d={card.icon}/>
                         </svg>
                       </div>
-                      <div className="card-title">{card.title}</div>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
+                      <div className="text-base font-medium">{card.title}</div>
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Styles für Dashboard Cards */}
-      <style dangerouslySetInnerHTML={{__html: `
-        .separator-line {
-          width: 100%;
-          height: 1px;
-          background-color: #e5e7eb;
-          margin: 1.5rem 0;
-        }
-        
-        .dashboard-card {
-          display: flex;
-          align-items: center;
-          padding: 1.5rem 1rem;
-          background-color: #fff;
-          border: 1px solid #c6c6c6;
-          border-radius: 0.25rem;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-          transition: all 0.2s ease;
-          text-decoration: none;
-          color: #1f2937;
-        }
-        
-        .dashboard-card:hover {
-          background-image: linear-gradient(#0090e5, #0076bc 60%, #0069a8);
-          color: #fff;
-          text-decoration: none;
-          box-shadow: 0 4px 12px rgba(0, 118, 188, 0.3);
-          transform: translateY(-2px);
-        }
-        
-        .card-icon {
-          color: #0076bc;
-          transition: color 0.2s;
-          flex-shrink: 0;
-        }
-        
-        .dashboard-card:hover .card-icon {
-          color: #fff;
-        }
-        
-        .card-title {
-          font-size: 1rem;
-          font-weight: 500;
-        }
-      `}} />
-    </>
+    </div>
   );
 }

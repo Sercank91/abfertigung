@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 
 /**
  * GET /api/ocr/status/[documentId]
@@ -8,13 +8,14 @@ import { pool } from '@/lib/db';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { documentId: string } }
+  context: { params: Promise<{ documentId: string }> }
 ) {
+  const params = await context.params;
   try {
     const { documentId } = params;
 
     // OcrDocument aus Datenbank laden
-    const docResult = await pool.query(
+    const docResult = await querySystem(
       'SELECT * FROM "OcrDocument" WHERE id = $1',
       [documentId]
     );
@@ -29,7 +30,7 @@ export async function GET(
     const ocrDocument = docResult.rows[0];
 
     // Shipments laden
-    const shipmentsResult = await pool.query(
+    const shipmentsResult = await querySystem(
       'SELECT * FROM "Shipment" WHERE "ocrDocumentId" = $1',
       [documentId]
     );
@@ -37,7 +38,7 @@ export async function GET(
     // Positionen für alle Shipments laden
     const shipments = await Promise.all(
       shipmentsResult.rows.map(async (shipment) => {
-        const positionsResult = await pool.query(
+        const positionsResult = await querySystem(
           `SELECT * FROM "ShipmentPosition"
            WHERE "shipmentId" = $1
            ORDER BY "orderNumber" ASC`,

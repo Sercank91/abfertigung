@@ -1,0 +1,26 @@
+#!/bin/bash
+# Dieses Script ist nur zur Dokumentation - manuelle Korrektur erforderlich
+
+echo "Folgende Dateien müssen korrigiert werden:"
+echo ""
+echo "Pattern zu ersetzen:"
+echo "  { params }: { params: { ... } }"
+echo "→"
+echo "  context: { params: Promise<{ ... }> }"
+echo ""
+echo "Und am Anfang der Funktion hinzufügen:"
+echo "  const params = await context.params;"
+echo ""
+echo "Dateien:"
+echo "- src/app/api/guarantees/[id]/route.ts"
+echo "- src/app/api/authorizations/[id]/route.ts"
+echo "- src/app/api/goods-locations/[id]/route.ts"
+echo "- src/app/api/users/[id]/route.ts"
+echo "- src/app/api/employees/[id]/route.ts"
+echo "- src/app/api/routes/[id]/route.ts"
+echo "- src/app/api/clearances/[anmNr]/route.ts"
+echo "- src/app/api/ocr/document/[documentId]/route.ts"
+echo "- src/app/api/ocr/documents/[clearanceId]/route.ts"
+echo "- src/app/api/ocr/shipments/[clearanceId]/route.ts"
+echo "- src/app/api/ocr/status/[documentId]/route.ts"
+

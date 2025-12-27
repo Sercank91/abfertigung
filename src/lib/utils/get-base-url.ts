@@ -2,10 +2,14 @@ import { headers } from 'next/headers';
 
 /**
  * Ermittelt die Base-URL für Server-Side API-Calls.
- * Verwendet die Request-Headers, um den korrekten Host zu ermitteln.
- * Funktioniert sowohl auf localhost als auch in Production (Cloudflare/Cloud Run).
+ * 
+ * ⚠️ WICHTIG: Diese Funktion kann NICHT für Security-relevante Validierung verwendet werden,
+ * da sie aus Next.js Server Components aufgerufen wird, wo kein Request-Objekt verfügbar ist.
+ * Sie dient nur als Convenience für Client-Side Redirects.
+ * 
+ * Für Security: Nutze resolveTenantFromRequestUrl(request.url) in API routes!
  */
-export function getBaseUrl(): string {
+export async function getBaseUrl(): Promise<string> {
   // Für Build-Zeit oder wenn keine Headers verfügbar sind
   if (typeof window !== 'undefined') {
     // Client-Side: verwende window.location
@@ -13,26 +17,13 @@ export function getBaseUrl(): string {
   }
 
   try {
-    const headersList = headers();
+    const headersList = await headers();
     
-    // Debug: Log alle relevanten Headers (nur in Development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[getBaseUrl] Headers:', {
-        host: headersList.get('host'),
-        'x-forwarded-host': headersList.get('x-forwarded-host'),
-        'x-forwarded-proto': headersList.get('x-forwarded-proto'),
-      });
-    }
-    
-    // Cloudflare/Proxy Support: X-Forwarded-Host und X-Forwarded-Proto bevorzugen
-    const forwardedHost = headersList.get('x-forwarded-host');
-    const forwardedProto = headersList.get('x-forwarded-proto');
+    // 🔒 SECURITY NOTE: Dies ist NUR für convenience, NICHT für Security!
+    // In API routes: Nutze resolveTenantFromRequestUrl(request.url)
     const host = headersList.get('host');
     
-    // Bestimme den Host (Cloudflare setzt x-forwarded-host)
-    const actualHost = forwardedHost?.split(',')[0]?.trim() || host;
-    
-    if (!actualHost) {
+    if (!host) {
       console.warn('[getBaseUrl] Kein Host gefunden, verwende Fallback');
       return process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     }
@@ -41,14 +32,11 @@ export function getBaseUrl(): string {
     let protocol = 'https';
     
     // Für localhost immer http verwenden
-    if (actualHost.includes('localhost') || actualHost.includes('127.0.0.1')) {
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
       protocol = 'http';
-    } else if (forwardedProto) {
-      // Verwende x-forwarded-proto wenn verfügbar
-      protocol = forwardedProto.split(',')[0]?.trim() || 'https';
     }
     
-    const baseUrl = `${protocol}://${actualHost}`;
+    const baseUrl = `${protocol}://${host}`;
     
     if (process.env.NODE_ENV === 'development') {
       console.log('[getBaseUrl] Ermittelte URL:', baseUrl);

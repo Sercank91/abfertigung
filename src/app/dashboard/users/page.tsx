@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
 import { cache } from 'react';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import UserList from './UserList';
 import SubHeader from '@/components/SubHeader';
 
@@ -32,7 +32,7 @@ interface User {
 
 // Cache for multiple calls in same request
 const getUser = cache(async (): Promise<JWTPayload> => {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   
   if (!token?.value) {
@@ -52,7 +52,8 @@ const getUser = cache(async (): Promise<JWTPayload> => {
 // Direkte Datenbankabfrage statt HTTP-Request
 async function getUsers(tenantId: string): Promise<User[]> {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `SELECT 
         id,
         username,
@@ -65,7 +66,7 @@ async function getUsers(tenantId: string): Promise<User[]> {
         "createdAt",
         "updatedAt"
       FROM "User" 
-      WHERE "tenantId" = $1 
+      WHERE "tenantId" = $1 AND "isActive" = true
       ORDER BY "lastName", "firstName"`,
       [tenantId]
     );
@@ -108,7 +109,7 @@ export default async function UsersPage() {
   const userRole = user.role || 'user';
   
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Subheader */}
       <SubHeader 
         title={`Benutzer-Verwaltung - ${tenantName}`}
@@ -117,16 +118,18 @@ export default async function UsersPage() {
       />
 
       {/* Main Content */}
-      <main className="px-8 py-6" role="main">
-        <div className="max-w-7xl mx-auto">
-          <UserList 
-            initialUsers={users}
-            canEdit={canEdit}
-            userRole={userRole}
-          />
+      <main className="flex-1 overflow-auto" role="main">
+        <div className="px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            <UserList 
+              initialUsers={users}
+              canEdit={canEdit}
+              userRole={userRole}
+            />
+          </div>
         </div>
       </main>
-    </>
+    </div>
   );
 }
 

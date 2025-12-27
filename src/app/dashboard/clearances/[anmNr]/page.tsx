@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import ClearanceForm from '../ClearanceForm';
 
 // ✅ Helper für AnmNr Formatierung
@@ -11,7 +11,7 @@ function formatAnmNr(anmNr: string): string {
 }
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
   
@@ -26,7 +26,8 @@ async function getUser() {
 // ✅ Direkte Datenbankabfrage: Prüfe ob AnmNr existiert
 async function checkClearanceExists(anmNr: string, tenantId: string) {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       'SELECT id FROM "Clearance" WHERE "anmNr" = $1 AND "tenantId" = $2',
       [anmNr, tenantId]
     );
@@ -54,7 +55,8 @@ export default async function EditClearancePage({
     if (!existsAsAnmNr) {
       // Nicht als anmNr gefunden - versuche als ID
       try {
-        const result = await pool.query(
+        const result = await queryTenant(
+          user.tenantId,
           'SELECT "anmNr" FROM "Clearance" WHERE id = $1 AND "tenantId" = $2',
           [parseInt(anmNr), user.tenantId]
         );
@@ -87,11 +89,11 @@ export default async function EditClearancePage({
   }
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Subheader mit Titel und AnmNr */}
-      <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
-        <div className="flex items-center justify-between">
-          <h2 className="text-gray-800 text-xl font-normal leading-none">
+      <div className="w-full pb-1 bg-[#f2f2f2]">
+        <div className="px-1 flex flex-row flex-nowrap justify-between">
+          <h2 className="text-gray-800 text-[1.8rem] font-normal leading-none">
             Abfertigung bearbeiten - {user.tenantName}
           </h2>
           <div className="text-right">
@@ -102,14 +104,16 @@ export default async function EditClearancePage({
       </div>
 
       {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="w-full">
-          <ClearanceForm
-            anmNr={anmNr}  
-            userId={user.id}
-          />
+      <div className="flex-1 overflow-auto">
+        <div className="px-8 py-6">
+          <div className="w-full">
+            <ClearanceForm
+              anmNr={anmNr}  
+              userId={user.id}
+            />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

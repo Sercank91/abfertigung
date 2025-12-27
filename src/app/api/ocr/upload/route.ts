@@ -5,7 +5,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import logger from '@/lib/logger';
 
 const execPromise = promisify(exec);
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     const docId = uuidv4();
     const now = new Date();
 
-    await pool.query(
+    await querySystem(
       `INSERT INTO "OcrDocument" (
         id, "clearanceId", "fileName", "fileSize", "fileType",
         "filePath", status, progress, "createdAt", "updatedAt"
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
     const taskId = await sendCeleryTask(docId, filePath, clearanceId);
 
     // Task-ID in Datenbank speichern
-    await pool.query(
+    await querySystem(
       'UPDATE "OcrDocument" SET "ocrJobId" = $1, "updatedAt" = $2 WHERE id = $3',
       [taskId, new Date(), docId]
     );

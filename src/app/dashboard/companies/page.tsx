@@ -1,19 +1,19 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { decodeJwt } from 'jose';
-import { pool } from '@/lib/db';
+import { queryTenant } from '@/lib/db';
 import CompanyList from './CompanyList';
 import SubHeader from '@/components/SubHeader';
 
 async function getUser() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get('auth-token');
   if (!token) redirect('/');
-  
+
   try {
     const payload = decodeJwt(token.value);
     return payload as any;
-  } catch (error) {
+  } catch {
     redirect('/');
   }
 }
@@ -21,7 +21,8 @@ async function getUser() {
 // Direkte Datenbankabfrage statt HTTP-Request
 async function getCompanies(tenantId: string) {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `SELECT c.id, c.name, c.country, c.address, c."postalCode", c.city, 
               c.emails, c.phones, c."isActive", c."createdAt", c."updatedAt",
               COALESCE(
@@ -51,7 +52,8 @@ async function getCompanies(tenantId: string) {
 // Direkte Datenbankabfrage für Bürgschaften
 async function getGuarantees(tenantId: string) {
   try {
-    const result = await pool.query(
+    const result = await queryTenant(
+      tenantId,
       `SELECT id, name, description, "isActive"
        FROM "Guarantee" 
        WHERE "tenantId" = $1 AND "isActive" = true
@@ -69,29 +71,29 @@ export default async function CompaniesPage() {
   const user = await getUser();
   const companies = user.tenantId ? await getCompanies(user.tenantId) : [];
   const guarantees = user.tenantId ? await getGuarantees(user.tenantId) : [];
-  
+
   const canEdit = user.role === 'admin' || user.role === 'schichtleiter';
-  
+
   return (
-    <>
-      {/* Subheader mit Titel */}
-      <SubHeader 
+    <div className="flex flex-col h-full">
+      <SubHeader
         title={`Firmen-Verwaltung - ${user.tenantName}`}
         userRole={user.role}
         tenantName={user.tenantName}
       />
 
-      {/* Main Content */}
-      <div className="px-8 py-6">
-        <div className="max-w-7xl mx-auto">
-          <CompanyList 
-            initialCompanies={companies} 
-            availableGuarantees={guarantees}
-            canEdit={canEdit}
-            userRole={user.role}
-          />
+      <div className="flex-1 overflow-auto">
+        <div className="px-8 py-6">
+          <div className="max-w-7xl mx-auto">
+            <CompanyList
+              initialCompanies={companies}
+              availableGuarantees={guarantees}
+              canEdit={canEdit}
+              userRole={user.role}
+            />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

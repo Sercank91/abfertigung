@@ -14,11 +14,10 @@ export default function Header({ firstName, tenantName }: HeaderProps) {
 
   return (
     <header 
-      style={{ backgroundColor: '#393939' }}
-      className="w-full h-14 px-8 shadow-md flex items-center justify-between"
+      className="w-full h-[55px] min-h-[56px] max-h-[56px] bg-[#393939] px-8 shadow-md flex items-center justify-between"
     >
-      <Link href="/dashboard">
-        <h1 className="text-white text-3xl font-light tracking-wide cursor-pointer hover:opacity-80 transition-opacity">
+      <Link href="/dashboard" className="cursor-pointer hover:opacity-80 transition-opacity">
+        <h1 className="text-white text-3xl font-light tracking-wide">
           MAS Project
         </h1>
       </Link>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
+import { querySystem } from '@/lib/db';
 import { unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 
@@ -10,13 +10,14 @@ import { existsSync } from 'fs';
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { documentId: string } }
+  context: { params: Promise<{ documentId: string }> }
 ) {
+  const params = await context.params;
   try {
     const { documentId } = params;
 
     // Dokument aus Datenbank abrufen, um Dateipfad zu bekommen
-    const docResult = await pool.query(
+    const docResult = await querySystem(
       'SELECT "filePath" FROM "OcrDocument" WHERE id = $1',
       [documentId]
     );
@@ -31,14 +32,14 @@ export async function DELETE(
     const filePath = docResult.rows[0].filePath;
 
     // Verknüpfte Shipments und Positionen löschen
-    await pool.query(
+    await querySystem(
       'DELETE FROM "ShipmentPosition" WHERE "shipmentId" IN (SELECT id FROM "Shipment" WHERE "ocrDocumentId" = $1)',
       [documentId]
     );
-    await pool.query('DELETE FROM "Shipment" WHERE "ocrDocumentId" = $1', [documentId]);
+    await querySystem('DELETE FROM "Shipment" WHERE "ocrDocumentId" = $1', [documentId]);
 
     // OcrDocument löschen
-    await pool.query('DELETE FROM "OcrDocument" WHERE id = $1', [documentId]);
+    await querySystem('DELETE FROM "OcrDocument" WHERE id = $1', [documentId]);
 
     // Datei löschen (falls vorhanden)
     if (filePath && existsSync(filePath)) {
