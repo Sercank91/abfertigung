@@ -1,0 +1,20 @@
+export async function middleware(request: NextRequest) {
+  // SECURITY: Host-Bestimmung fuer Cloud Run
+  // Cloud Run gibt manchmal 0.0.0.0 als hostname zurueck, daher verwenden wir den Host-Header in Production.
+  // Dies ist sicher, da Cloud Run den Host-Header basierend auf der tatsaechlichen Anfrage setzt.
+  let hostname = request.nextUrl.hostname;
+  const hostHeader = request.headers.get('host');
+  
+  // Cloud Run Fix: In Production, verwende Host-Header wenn hostname ungueltig ist
+  if (process.env.NODE_ENV === 'production' && hostHeader) {
+    // Next.js gibt in Cloud Run oft "0.0.0.0" oder die .run.app URL zurueck
+    if (hostname === '0.0.0.0' || hostname.endsWith('.run.app')) {
+      const hostWithoutPort = hostHeader.toLowerCase().split(':')[0];
+      console.log('[CLOUD_RUN] Using Host header instead of nextUrl.hostname:', {
+        'nextUrl.hostname': hostname,
+        'host header': hostHeader,
+        'using': hostWithoutPort
+      });
+      hostname = hostWithoutPort;
+    }
+  }
