@@ -70,19 +70,13 @@ export async function getUserFromToken(request: NextRequest): Promise<AuthUser |
       }
     }
     
-
-    // 🔒 SECURITY: Verwende zentrale Tenant-Validierung
-    // NIEMALS manuell host/x-forwarded-host parsen - verhindert Host Header Spoofing
-    const hostname = request.nextUrl?.hostname || '';
     const { tenant: hostTenantId, isValidHost } = parseTenantFromHostname(hostname);
 
-    // Blockiere ungültige Hosts
     if (!isValidHost) {
       console.error(`[SECURITY] API-Auth: Ungültiger Host blockiert: ${hostname}`);
       return null;
     }
 
-    // Cross-Tenant Check: User darf nur auf seinen eigenen Tenant zugreifen
     if (hostTenantId && (payload as any).tenantSlug && hostTenantId !== (payload as any).tenantSlug) {
       console.warn(`[SECURITY] Cross-Tenant Zugriff blockiert: User ${(payload as any).tenantSlug} → Host ${hostTenantId}`);
       return null;
