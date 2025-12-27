@@ -61,6 +61,16 @@ export async function getUserFromToken(request: NextRequest): Promise<AuthUser |
   try {
     const { payload } = await jwtVerify(token, SECRET);
 
+    let hostname = request.nextUrl?.hostname || '';
+    const hostHeader = request.headers.get('host');
+    
+    if (process.env.NODE_ENV === 'production' && hostHeader) {
+      if (hostname === '0.0.0.0' || hostname.endsWith('.run.app')) {
+        hostname = hostHeader.toLowerCase().split(':')[0];
+      }
+    }
+    
+
     // 🔒 SECURITY: Verwende zentrale Tenant-Validierung
     // NIEMALS manuell host/x-forwarded-host parsen - verhindert Host Header Spoofing
     const hostname = request.nextUrl?.hostname || '';

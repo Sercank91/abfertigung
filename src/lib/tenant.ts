@@ -42,6 +42,14 @@ export function parseTenantFromHostname(hostname: string, hostHeader?: string | 
   }
 
   let normalizedHost = hostname.toLowerCase();
+  
+  if (normalizedHost.endsWith('.run.app')) {
+    return { 
+      tenant: null, 
+      isValidHost: false, 
+      reason: 'Cloud Run URLs sind nicht erlaubt - verwenden Sie abfertigung.io' 
+    };
+  }
 
   // 🧪 DEV-ONLY: Localhost-Subdomain-Fallback
   // Problem: In lokaler Entwicklung gibt request.nextUrl.hostname manchmal nur "localhost" zurück,
