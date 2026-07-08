@@ -33,7 +33,7 @@ export default function GlobalError({
               fontWeight: '300',
               letterSpacing: '0.05em',
               margin: 0
-            }}>MAS Project</h1>
+            }}>ATILLATEC</h1>
           </header>
 
           {/* Subheader */}
@@ -117,7 +117,7 @@ export default function GlobalError({
               fontSize: '0.75rem',
               margin: 0
             }}>
-              1.0.5v © 2025 MAS Project für Speditionen
+              1.0.5v © 2026 Atilla Spedition GmbH Coded with Love (Sercan K.)
             </p>
           </footer>
         </div>
