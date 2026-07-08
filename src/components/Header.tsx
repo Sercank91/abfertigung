@@ -19,7 +19,7 @@ export default function Header({ firstName, tenantName }: HeaderProps) {
     >
       <Link href="/dashboard">
         <h1 className="text-white text-3xl font-light tracking-wide cursor-pointer hover:opacity-80 transition-opacity">
-          MAS Project
+          ATILLATEC
         </h1>
       </Link>
       
