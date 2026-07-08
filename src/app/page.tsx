@@ -28,7 +28,7 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
         }} 
         className="w-full px-8 shadow-md flex items-center"
       >
-        <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
+        <h1 className="text-white text-3xl font-light tracking-wide">ATILLATEC</h1>
       </header>
 
       {/* Subheader mit Firmennamen OHNE Logo */}
@@ -38,7 +38,7 @@ function LoginForm({ tenantName, logoUrl }: { tenantName: string; logoUrl: strin
             Anmelden - {tenantName}
           </h2>
           <span className="text-gray-600 text-sm leading-none mb-0.5">
-            MAS Project Webapplikation für Speditionen
+            ATILLATEC
           </span>
         </div>
       </div>
@@ -412,7 +412,7 @@ export default async function Home() {
         className="w-full py-4 px-8 text-right"
       >
         <p className="text-gray-600 text-xs">
-          1.0.5v © 2025 MAS Project für Speditionen
+          1.0.5v © 2026 Atilla Spedition GmbH Coded with Love (Sercan K.)
         </p>
       </footer>
     </div>
