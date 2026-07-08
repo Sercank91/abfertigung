@@ -194,19 +194,50 @@ export async function DELETE(
       );
     }
 
-    // Soft Delete - setze isActive auf false
-    await pool.query(
-      'UPDATE "User" SET "isActive" = false, "updatedAt" = NOW() WHERE id = $1',
+    // Prüfe ob der Benutzer bereits Abfertigungen erstellt/bearbeitet hat
+    // oder in der Abfertigungs-Historie referenziert wird. Solche Benutzer
+    // dürfen aus Nachweisgründen nicht endgültig gelöscht werden.
+    const references = await pool.query(
+      `SELECT
+        (SELECT COUNT(*) FROM "Clearance" WHERE "createdById" = $1 OR "updatedById" = $1)::int AS clearance_count,
+        (SELECT COUNT(*) FROM "ClearanceHistory" WHERE "userId" = $1)::int AS history_count`,
       [params.id]
     );
 
-    console.log('✅ User deaktiviert:', checkUser.rows[0].username);
+    const { clearance_count, history_count } = references.rows[0];
+
+    if (clearance_count > 0 || history_count > 0) {
+      return NextResponse.json(
+        {
+          error: `${checkUser.rows[0].username} hat bereits Abfertigungen erstellt oder bearbeitet und kann aus Nachweisgründen nicht gelöscht werden. Sie können den Benutzer stattdessen deaktivieren.`
+        },
+        { status: 409 }
+      );
+    }
+
+    // Keine Verknüpfungen vorhanden - Benutzer endgültig löschen
+    await pool.query(
+      'DELETE FROM "User" WHERE id = $1 AND "tenantId" = $2',
+      [params.id, user.tenantId]
+    );
+
+    console.log('✅ User gelöscht:', checkUser.rows[0].username);
 
     return NextResponse.json({
-      message: 'Benutzer wurde deaktiviert'
+      message: 'Benutzer wurde gelöscht'
     });
 
   } catch (error) {
+    // Fallback: falls doch noch eine Fremdschlüssel-Verknüpfung besteht
+    // (Postgres Fehlercode 23503), klare Meldung statt generischem 500.
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '23503') {
+      return NextResponse.json(
+        {
+          error: 'Der Benutzer ist noch mit anderen Datensätzen verknüpft und kann nicht gelöscht werden. Sie können den Benutzer stattdessen deaktivieren.'
+        },
+        { status: 409 }
+      );
+    }
     console.error('❌ Fehler beim Löschen des Benutzers:', error);
     return NextResponse.json({ error: 'Fehler beim Löschen des Benutzers' }, { status: 500 });
   }
