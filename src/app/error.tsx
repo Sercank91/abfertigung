@@ -25,7 +25,7 @@ export default function Error({
         }} 
         className="w-full px-8 shadow-md flex items-center"
       >
-        <h1 className="text-white text-3xl font-light tracking-wide">MAS Project</h1>
+        <h1 className="text-white text-3xl font-light tracking-wide">ATILLATEC</h1>
       </header>
 
       {/* Subheader */}
@@ -82,7 +82,7 @@ export default function Error({
         className="w-full py-4 px-8 text-right"
       >
         <p className="text-gray-600 text-xs">
-          1.0.5v © 2025 MAS Project für Speditionen
+          1.0.5v © 2026 Atilla Spedition GmbH Coded with Love (Sercan K.)
         </p>
       </footer>
     </div>

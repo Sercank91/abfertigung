@@ -315,7 +315,7 @@ export default async function Home() {
             }} 
             className="w-full px-8 shadow-md flex items-center"
           >
-            <h1 className="text-white text-3xl font-light tracking-wide">ATILLATECt</h1>
+            <h1 className="text-white text-3xl font-light tracking-wide">ATILLATEC</h1>
           </header>
           
           <div className="flex-1 flex items-center justify-center p-8">
@@ -371,13 +371,13 @@ export default async function Home() {
         }} 
         className="w-full px-8 shadow-md flex items-center"
       >
-        <h1 className="text-white text-3xl font-light tracking-wide">ATILLA TEC</h1>
+        <h1 className="text-white text-3xl font-light tracking-wide">ATILLATEC</h1>
       </header>
 
       <div style={{ backgroundColor: '#f2f2f2' }} className="w-full py-4 px-8 border-b border-gray-300">
         <div className="flex items-end gap-3">
           <h2 className="text-gray-800 text-xl font-normal leading-none">
-            ATILLATEC
+            ATILLATEC Abfertigung
           </h2>
           <span className="text-gray-600 text-sm leading-none mb-0.5">
             Professionelles Zollabfertigungsmanagement
